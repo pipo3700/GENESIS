@@ -1,0 +1,86 @@
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background-color: #f85050; /* Fondo rojo UPV */
+  color: white;
+}
+
+.App {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  justify-content: center;
+  text-align: center;
+}
+
+form {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+}
+
+label {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+textarea, input[type="file"] {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: none;
+  margin-top: 0.3rem;
+  margin-bottom: 1rem;
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+button {
+  padding: 0.7rem 1.5rem;
+  font-size: 1rem;
+  background-color: white;
+  color: #f85050;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background-color: #ffeaea;
+}
+
+.custom-file-upload {
+  display: inline-block;
+  padding: 8px 15px;
+  background-color: white;
+  color: #f85050;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 0.5rem;
+}
+
+.custom-file-upload input[type="file"] {
+  display: none;
+}
+
+.bottom-left,
+.bottom-right {
+  position: fixed;
+  bottom: 10px;
+  width: 300px;
+  opacity: 0.8;
+}
+
+.bottom-left {
+  left: 10px;
+}
+
+.bottom-right {
+  right: 10px;
+}
