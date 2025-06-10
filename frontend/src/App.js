@@ -45,7 +45,7 @@ function App() {
     console.log("Job offer length:", jobOffer.length);
 
     try {
-      const response = await fetch("/func-genesis-upload/UploadCVandOffer", {
+      const response = await fetch("/api/UploadCVandOffer", {
         method: "POST",
         body: formData,
         headers: {
