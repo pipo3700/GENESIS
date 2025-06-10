@@ -6,7 +6,8 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 
 namespace functions
 {
@@ -14,22 +15,58 @@ namespace functions
     {
         [FunctionName("UploadCVandOffer")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+            log.LogInformation("Procesando subida de archivos...");
 
-            string name = req.Query["name"];
+            try
+            {
+                var form = await req.ReadFormAsync();
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+                var cvFile = form.Files["cv"];
+                var jobOfferText = form["jobOffer"];
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+                if (cvFile == null || string.IsNullOrEmpty(jobOfferText))
+                    return new BadRequestObjectResult("Faltan el archivo del CV o la descripción de la oferta de trabajo.");
 
-            return new OkObjectResult(responseMessage);
+                // Cliente de Blob Storage
+                var connectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+                var blobServiceClient = new BlobServiceClient(connectionString);
+                var containerClient = blobServiceClient.GetBlobContainerClient("uploads");
+
+                await containerClient.CreateIfNotExistsAsync(PublicAccessType.None);
+
+                // Subir CV
+                var cvBlobName = $"cv-{DateTime.UtcNow.Ticks}-{cvFile.FileName}";
+                var cvBlobClient = containerClient.GetBlobClient(cvBlobName);
+
+                using (var stream = cvFile.OpenReadStream())
+                {
+                    await cvBlobClient.UploadAsync(stream, true);
+                }
+
+                // Subir descripción de oferta como .txt
+                var jobBlobName = $"jobOffer-{DateTime.UtcNow.Ticks}.txt";
+                var jobBlobClient = containerClient.GetBlobClient(jobBlobName);
+
+                using (var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(jobOfferText)))
+                {
+                    await jobBlobClient.UploadAsync(ms, true);
+                }
+
+                return new OkObjectResult(new
+                {
+                    message = "Subida exitosa.",
+                    cvUrl = cvBlobClient.Uri.ToString(),
+                    jobOfferUrl = jobBlobClient.Uri.ToString()
+                });
+            }
+            catch (Exception ex)
+            {
+                log.LogError($"Error al subir archivos: {ex.Message}");
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
         }
     }
 }
