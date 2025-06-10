@@ -67,7 +67,7 @@ function App() {
       }
 
       if (response.ok) {
-        alert("¡Subida exitosa! 🎉");
+        alert("¡Subida exitosa! 🎉, ahora genere su cv adaptado");
         console.log("Server response:", data);
         
         // Limpiar formulario
