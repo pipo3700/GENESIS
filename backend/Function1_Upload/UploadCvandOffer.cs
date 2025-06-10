@@ -69,5 +69,12 @@ namespace Function1_Upload
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
         }
+        [FunctionName("Hello")]
+        public static IActionResult Hello(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req,
+            ILogger log)
+        {
+            return new OkObjectResult("Hola mundo desde Azure Functions!");
+        }
     }
 }
