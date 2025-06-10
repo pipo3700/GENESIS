@@ -15,7 +15,7 @@ namespace Function1_Upload
     {
         [FunctionName("UploadCVandOffer")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "options", Route = null)] HttpRequest req,
             ILogger log)
         {
             log.LogInformation("Processing files upload...");
