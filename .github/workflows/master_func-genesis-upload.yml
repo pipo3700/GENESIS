@@ -1,0 +1,54 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+name: Build and deploy Function1_Upload to Azure - func-genesis-upload
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'backend/Function1_Upload' # carpeta real del proyecto
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build project
+        shell: pwsh
+        run: |
+          pushd '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          dotnet publish --configuration Release --output ./output
+          popd
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_16214968AF604BF3AA4E34B253DE221F }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_397C557C4D1F45D5B8F7617B97739F7F }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_223020DF98BF450EABD57792D28398AA }}
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: 'func-genesis-upload'
+          slot-name: 'Production'
+          package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
