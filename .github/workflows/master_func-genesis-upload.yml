@@ -4,9 +4,6 @@
 name: Build and deploy Function1_Upload to Azure - func-genesis-upload
 
 on:
-  push:
-    branches:
-      - dev
   pull_request:
     branches:
       - master
