@@ -11,7 +11,7 @@
     },
     "extensions": {
         "http": {
-            "routePrefix": "",
+            "routePrefix": "api",
             "maxOutstandingRequests": 200,
             "maxConcurrentRequests": 100,
             "dynamicThrottlesEnabled": true
@@ -22,9 +22,18 @@
         "version": "[3.*, 4.0.0)"
     },
     "cors": {
-        "allowedOrigins": ["*"],
+        "allowedOrigins": [
+            "https://red-sand-04619bc10.6.azurestaticapps.net",
+            "http://localhost:3000",
+            "http://localhost:8080"
+        ],
         "allowedMethods": ["GET", "POST", "OPTIONS"],
-        "allowedHeaders": ["*"],
-        "maxAge": 86400
+        "allowedHeaders": [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With"
+        ],
+        "maxAge": 86400,
+        "allowCredentials": false
     }
 }
