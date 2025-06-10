@@ -8,5 +8,23 @@
             },
             "enableLiveMetricsFilters": true
         }
+    },
+    "extensions": {
+        "http": {
+            "routePrefix": "",
+            "maxOutstandingRequests": 200,
+            "maxConcurrentRequests": 100,
+            "dynamicThrottlesEnabled": true
+        }
+    },
+    "extensionBundle": {
+        "id": "Microsoft.Azure.Functions.ExtensionBundle",
+        "version": "[3.*, 4.0.0)"
+    },
+    "cors": {
+        "allowedOrigins": ["*"],
+        "allowedMethods": ["GET", "POST", "OPTIONS"],
+        "allowedHeaders": ["*"],
+        "maxAge": 86400
     }
 }
