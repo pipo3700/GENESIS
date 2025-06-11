@@ -34,9 +34,10 @@ jobs:
         run: |
           pip install -r ${{ env.FUNCTION_FOLDER }}/requirements.txt
 
-      - name: Zip Function folder
+      - name: Zip Function App for deployment
         run: |
           cd ${{ env.FUNCTION_FOLDER }}
+          cp requirements.txt host.json .
           zip -r ../../function2.zip ./*
 
       - name: Login to Azure
