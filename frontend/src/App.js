@@ -45,7 +45,7 @@ function App() {
     console.log("Job offer length:", jobOffer.length);
 
     try {
-      const response = await fetch("https://red-sand-04619bc10.6.azurestaticapps.net/UploadCVandOffer", {
+      const response = await fetch("https://api-upload-genesis.azure-api.net/func-genesis-upload/UploadCVandOffer", {
         method: "POST",
         body: formData,
         headers: {
