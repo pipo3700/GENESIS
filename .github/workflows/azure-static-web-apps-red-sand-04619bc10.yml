@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
 
 jobs:
   build_and_deploy_job:
