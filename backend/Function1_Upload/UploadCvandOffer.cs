@@ -37,6 +37,7 @@ namespace Function1_Upload
                 await containerClient.CreateIfNotExistsAsync(PublicAccessType.None);
 
                 var timestamp = DateTime.UtcNow.Ticks;
+                var jobId = timestamp.ToString(); 
 
                 // Subir CV a 'cv/' dentro del contenedor
                 var cvBlobName = $"cv/cv-{timestamp}-{cvFile.FileName}";
@@ -59,6 +60,7 @@ namespace Function1_Upload
                 return new OkObjectResult(new
                 {
                     message = "Subida exitosa.",
+                    jobId = jobId,
                     cvUrl = cvBlobClient.Uri.ToString(),
                     jobOfferUrl = jobBlobClient.Uri.ToString()
                 });
