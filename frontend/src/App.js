@@ -5,44 +5,30 @@ import './App.css';
 
 function App() {
   const [file, setFile] = useState(null);
+  const [jobId, setJobId] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    
-    // Validar tamaño del archivo (máximo 5MB para Lambda)
     if (selectedFile && selectedFile.size > 5 * 1024 * 1024) {
       alert("El archivo es demasiado grande. Máximo 5MB permitido.");
-      e.target.value = ''; // Limpiar input
+      e.target.value = '';
       return;
     }
-    
     setFile(selectedFile);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!file) {
-      alert("Please select a document.");
-      return;
-    }
-
+    if (!file) return alert("Please select a document.");
     const jobOffer = document.getElementById("jobOffer").value;
-    if (!jobOffer.trim()) {
-      alert("Please describe your job offer.");
-      return;
-    }
-
+    if (!jobOffer.trim()) return alert("Please describe your job offer.");
     setIsUploading(true);
 
     const formData = new FormData();
     formData.append("cv", file);
     formData.append("jobOffer", jobOffer);
-
-    // Log para debugging
-    console.log("Uploading file:", file.name, "Size:", file.size, "Type:", file.type);
-    console.log("Job offer length:", jobOffer.length);
 
     try {
       const response = await fetch("https://api-genesis.azure-api.net/func-genesis-upload/UploadCVandOffer", {
@@ -53,36 +39,46 @@ function App() {
         }
       });
 
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        console.error("Error parsing JSON response:", jsonError);
-        const textResponse = await response.text();
-        console.log("Raw response:", textResponse);
-        throw new Error("Respuesta del servidor no es JSON válido");
-      }
-
+      const data = await response.json();
       if (response.ok) {
-        alert("¡Subida exitosa! 🎉, ahora genere su cv adaptado");
-        console.log("Server response:", data);
-        
-        // Limpiar formulario
+        alert("¡Subida exitosa! 🎉 Puedes generar tu CV adaptado.");
+        setJobId(data.jobId);
         setFile(null);
         document.getElementById("jobOffer").value = "";
         document.getElementById("cv").value = "";
       } else {
         alert("Error: " + (data.message || "Upload failed"));
-        console.error("Error response:", data);
       }
     } catch (err) {
-      console.error("Network error:", err);
-      alert("Network error while the file is uploading: " + err.message);
+      alert("Network error: " + err.message);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!jobId) return alert("No se ha subido ningún archivo aún.");
+    setIsGenerating(true);
+    try {
+      const response = await fetch("https://api-genesis.azure-api.net/func-genesis-generatecv/GenerateAdaptedCV", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Ocp-Apim-Subscription-Key": "75efa2c8485243f5ae8397740e084a8e"
+        },
+        body: JSON.stringify({ jobId })
+      });
+
+      const result = await response.json();
+      if (response.ok && result.generatedCvUrl) {
+        window.open(result.generatedCvUrl, "_blank");
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (err) {
+      alert("Error generando el CV: " + err.message);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -93,44 +89,31 @@ function App() {
       <form onSubmit={handleSubmit}>
         <div>
           <label htmlFor="jobOffer">Introduce your Job Offer:</label>
-          <textarea 
-            id="jobOffer" 
-            rows="5" 
-            placeholder="Describe the job offer..." 
-            disabled={isUploading}
-          />
+          <textarea id="jobOffer" rows="5" placeholder="Describe the job offer..." disabled={isUploading} />
         </div>
 
         <div>
           <label htmlFor="cv">Select your CV:</label>
           <label className="custom-file-upload">
-            <input 
-              type="file" 
-              id="cv" 
-              accept=".pdf,.doc,.docx,.txt" 
-              onChange={handleFileChange}
-              disabled={isUploading}
-            />
+            <input type="file" id="cv" accept=".pdf,.doc,.docx,.txt" onChange={handleFileChange} disabled={isUploading} />
             {isUploading ? 'Uploading...' : 'Upload file'}
           </label>
-          {file && (
-            <p>
-              Seleccionado: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-            </p>
-          )}
+          {file && <p>Seleccionado: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>}
         </div>
 
         <button type="submit" disabled={isUploading || !file}>
-          {isUploading ? 'Generating...' : 'Upload my CV and job Offer'}
+          {isUploading ? 'Uploading...' : 'Upload my CV and job Offer'}
         </button>
       </form>
-      
-      {isUploading && (
-        <div style={{marginTop: '20px', textAlign: 'center'}}>
-          <p>Uploading file, please wait...</p>
+
+      {jobId && (
+        <div style={{ marginTop: '20px' }}>
+          <button onClick={handleGenerate} disabled={isGenerating}>
+            {isGenerating ? 'Generating CV...' : 'Generar CV Adaptado'}
+          </button>
         </div>
       )}
-      
+
       <img src={logoLeft} alt="ETSINF logo" className="bottom-left" />
       <img src={logoRight} alt="UPV logo" className="bottom-right" />
     </div>
