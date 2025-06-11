@@ -45,11 +45,11 @@ function App() {
     console.log("Job offer length:", jobOffer.length);
 
     try {
-      const response = await fetch("https://api-upload-genesis.azure-api.net/func-genesis-upload/UploadCVandOffer", {
+      const response = await fetch("https://api-genesis.azure-api.net/func-genesis-upload/UploadCVandOffer", {
         method: "POST",
         body: formData,
         headers: {
-          "Ocp-Apim-Subscription-Key": "bdc87a3ba3ba43d99aada9b8e223443d"
+          "Ocp-Apim-Subscription-Key": "75efa2c8485243f5ae8397740e084a8e"
         }
       });
 
