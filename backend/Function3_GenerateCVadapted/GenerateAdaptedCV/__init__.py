@@ -9,7 +9,11 @@ from numpy.linalg import norm
 from reportlab.pdfgen import canvas
 
 # Configuración
-client = AzureOpenAI(api_key=os.environ["AZURE_OPENAI_KEY"], api_version="2024-02-01", azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"])
+client = AzureOpenAI(
+    api_version="2024-12-01-preview",  
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_key=os.environ["AZURE_OPENAI_KEY"]
+)
 cosmos = CosmosClient(os.environ["COSMOS_URL"], credential=os.environ["COSMOS_KEY"])
 db = cosmos.get_database_client(os.environ["COSMOS_DB"])
 container = db.get_container_client(os.environ["COSMOS_CONTAINER"])
