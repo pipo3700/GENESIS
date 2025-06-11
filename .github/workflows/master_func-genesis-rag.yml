@@ -72,4 +72,5 @@ jobs:
         uses: Azure/functions-action@v1
         with:
           app-name: 'func-genesis-rag'
+          slot-name: 'Production'
           package: 'release.zip'
