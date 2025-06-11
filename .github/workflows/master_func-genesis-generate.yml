@@ -9,11 +9,11 @@ on:
     branches:
       - master
     paths:
-      - 'backend/Function3_GenerateAdaptedCV/**'
+      - 'backend/Function3_GenerateCVAdapted/**'
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'backend/Function3_GenerateAdaptedCV'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'backend/Function3_GenerateCVAdapted'
   PYTHON_VERSION: '3.12'
 
 jobs:
