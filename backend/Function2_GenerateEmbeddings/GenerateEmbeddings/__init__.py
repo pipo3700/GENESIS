@@ -1,15 +1,13 @@
 import logging
 import os
 import json
-import openai
+from openai import AzureOpenAI  # ✅ Nueva sintaxis
 import requests
 import fitz 
 from azure.storage.blob import BlobClient
 from azure.core.credentials import AzureKeyCredential
 from azure.cosmos import CosmosClient, PartitionKey
 import azure.functions as func
-
-app = func.FunctionApp()
 
 # Config vars
 AZURE_OPENAI_KEY = os.environ["AZURE_OPENAI_KEY"]
@@ -21,6 +19,13 @@ cosmos_db = os.environ["COSMOS_DB"]
 cosmos_container = os.environ["COSMOS_CONTAINER"]
 STORAGE_ACCOUNT_NAME = os.environ["STORAGE_ACCOUNT_NAME"]
 STORAGE_SAS_TOKEN = os.environ["BLOB_SAS_TOKEN"]
+
+# ✅ Nueva forma de inicializar cliente OpenAI
+client = AzureOpenAI(
+    api_key=AZURE_OPENAI_KEY,
+    api_version="2024-02-01",
+    azure_endpoint=AZURE_OPENAI_ENDPOINT
+)
 
 cosmos_client = CosmosClient(cosmos_url, credential=cosmos_key)
 db = cosmos_client.get_database_client(cosmos_db)
@@ -40,16 +45,12 @@ def download_blob_text(blob_url):
     return response.text
 
 def generate_embedding(text):
-    openai.api_key = AZURE_OPENAI_KEY
-    openai.api_base = AZURE_OPENAI_ENDPOINT
-    openai.api_type = "azure"
-    openai.api_version = "2023-05-15"
-
-    embedding = openai.Embedding.create(
+    # ✅ Nueva sintaxis para embeddings
+    response = client.embeddings.create(
         input=text,
-        engine=OPENAI_DEPLOYMENT
-    )["data"][0]["embedding"]
-    return embedding
+        model=OPENAI_DEPLOYMENT
+    )
+    return response.data[0].embedding
 
 def insert_into_cosmos(doc_id, text, embedding, doc_type):
     document = {
@@ -61,26 +62,34 @@ def insert_into_cosmos(doc_id, text, embedding, doc_type):
     container.upsert_item(document)
     logging.info(f"Documento subido a Cosmos DB")
 
-@app.event_grid_trigger(arg_name="azeventgrid")
-def GenerateEmbeddings(azeventgrid: func.EventGridEvent):
+# ✅ ESTA ES LA FUNCIÓN PRINCIPAL QUE FALTABA
+def main(event: func.EventGridEvent):
     logging.info("Evento recibido")
-    event_data = json.loads(azeventgrid.get_body())
-    blob_url = event_data["url"]
     
-    filename = blob_url.split("/")[-1]
-    job_id = filename.split("-")[1]
-
-    job_offer_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/upload/joboffer/jobOffer-{job_id}.txt"
-
     try:
+        # Obtener datos del evento
+        event_data = event.get_json()
+        blob_url = event_data["url"]
+        
+        filename = blob_url.split("/")[-1]
+        job_id = filename.split("-")[1]
+
+        job_offer_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/upload/joboffer/jobOffer-{job_id}.txt"
+
+        # Procesar archivos
         cv_text = extract_text_from_pdf_bytes(requests.get(blob_url + "?" + STORAGE_SAS_TOKEN).content)
         job_offer_text = download_blob_text(job_offer_url)
 
+        # Generar embeddings
         cv_embedding = generate_embedding(cv_text)
         job_embedding = generate_embedding(job_offer_text)
 
+        # Insertar en Cosmos DB
         insert_into_cosmos(job_id, cv_text, cv_embedding, "cv")
         insert_into_cosmos(job_id, job_offer_text, job_embedding, "joboffer")
+        
+        logging.info(f"Procesamiento completado para job_id: {job_id}")
 
     except Exception as e:
         logging.error(f"Error procesando los blobs: {e}")
+        raise e
