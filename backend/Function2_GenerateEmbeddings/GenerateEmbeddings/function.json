@@ -2,7 +2,7 @@
   "scriptFile": "__init__.py",
   "bindings": [
     {
-      "name": "azeventgrid",
+      "name": "event",
       "type": "eventGridTrigger",
       "direction": "in"
     }
