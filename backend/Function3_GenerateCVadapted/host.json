@@ -11,5 +11,20 @@
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
-  }
+  },
+    "cors": {
+        "allowedOrigins": [
+            "https://red-sand-04619bc10.6.azurestaticapps.net",
+            "http://localhost:3000",
+            "http://localhost:8080"
+        ],
+        "allowedMethods": ["GET", "POST", "OPTIONS"],
+        "allowedHeaders": [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With"
+        ],
+        "maxAge": 86400,
+        "allowCredentials": false
+    }
 }
