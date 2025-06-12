@@ -121,10 +121,14 @@ def generate_pdf(text):
 def upload_pdf(pdf_stream, job_id):
     blob_service = get_blob_service()
     try:
-        blob = blob_service.get_blob_client("upload", f"generated/{job_id}.pdf")
+        blob_name = f"generated/{job_id}.pdf"
+        blob = blob_service.get_blob_client("upload", blob_name)
         blob.upload_blob(pdf_stream, overwrite=True, content_type="application/pdf")
+
         account_name = os.environ["STORAGE_ACCOUNT_NAME"]
-        return f"https://{account_name}.blob.core.windows.net/upload/generated/{job_id}.pdf"
+        sas_token = os.environ["BLOB_SAS_TOKEN"] 
+        url = f"https://{account_name}.blob.core.windows.net/upload/{blob_name}?{sas_token}"
+        return url
     except Exception as e:
         logging.error(f"Error subiendo PDF: {e}")
         raise Exception(f"Error subiendo PDF: {str(e)}")
