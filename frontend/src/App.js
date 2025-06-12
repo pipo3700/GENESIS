@@ -69,9 +69,24 @@ function App() {
         body: JSON.stringify({ jobId })
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (e) {
+        const text = await response.text();
+        console.error("Respuesta no JSON:", text);
+        alert("Error inesperado en el servidor.");
+        return;
+      }
+
       if (response.ok && result.generatedCvUrl) {
-        window.open(result.generatedCvUrl, "_blank");
+        // Descargar automáticamente
+        const a = document.createElement("a");
+        a.href = result.generatedCvUrl;
+        a.download = `CV_Adaptado_${jobId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       } else {
         alert("Error: " + result.message);
       }
@@ -84,7 +99,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1>CV Generator</h1>
+      <h1>Adapted CV Generator</h1>
 
       <form onSubmit={handleSubmit}>
         <div>
