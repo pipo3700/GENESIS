@@ -55,15 +55,38 @@ def upload_pdf(pdf_stream, job_id):
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Function 3 — GenerateAdaptedCV ejecutándose...")
+    
+    # Headers CORS
+    cors_headers = {
+        "Access-Control-Allow-Origin": "https://red-sand-04619bc10.6.azurestaticapps.net",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Ocp-Apim-Subscription-Key",
+        "Access-Control-Max-Age": "86400"
+    }
+    
+    # Manejar preflight request (OPTIONS)
+    if req.method == "OPTIONS":
+        return func.HttpResponse(
+            "",
+            status_code=200,
+            headers=cors_headers
+        )
+    
     try:
         job_id = req.get_json().get("jobId")
-        if not job_id: return func.HttpResponse("Falta jobId", status_code=400)
+        if not job_id: 
+            return func.HttpResponse(
+                "Falta jobId", 
+                status_code=400,
+                headers=cors_headers
+            )
 
         cv_text, job_text, cv_embed, job_embed = wait_for_embeddings(job_id)
         sim = cosine_sim(cv_embed, job_embed)
 
         prompt = f"""
-Eres un asistente experto en RRHH. Adapta el CV original a la oferta de trabajo resaltando los puntos relevantes. 
+Eres un asistente experto en RRHH. Adapta el CV original a la oferta de trabajo resaltando los puntos relevantes.
+
 Similitud cosenoidal: {sim:.2f}
 
 --- CV ORIGINAL ---
@@ -84,8 +107,17 @@ Genera el CV adaptado:
         pdf = generate_pdf(new_cv)
         url = upload_pdf(pdf, job_id)
 
-        return func.HttpResponse(json.dumps({"generatedCvUrl": url}), mimetype="application/json", status_code=200)
+        return func.HttpResponse(
+            json.dumps({"generatedCvUrl": url}), 
+            mimetype="application/json", 
+            status_code=200,
+            headers=cors_headers
+        )
 
     except Exception as e:
         logging.error(f"Error en Function 3: {e}")
-        return func.HttpResponse(f"Error interno: {str(e)}", status_code=500)
+        return func.HttpResponse(
+            f"Error interno: {str(e)}", 
+            status_code=500,
+            headers=cors_headers
+        )
