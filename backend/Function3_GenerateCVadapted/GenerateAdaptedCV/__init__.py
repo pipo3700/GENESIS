@@ -10,7 +10,7 @@ from reportlab.pdfgen import canvas
 
 # Configuración
 client = AzureOpenAI(
-    api_version="2024-12-01-preview",  
+    api_version="2024-12-01",  
     azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
     api_key=os.environ["AZURE_OPENAI_KEY"]
 )
