@@ -46,8 +46,8 @@ jobs:
     - name: Submit fine-tuning job to Azure ML
       run: |
         echo "BLOB_DATASET_URL=https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
-        python ml/train_model.py \
+        python backend/ml/train_model.py \
           --dataset_url "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
 
     - name: Register model from latest job output
-      run: python ml/deployment/register_model.py
+      run: python backend/ml/deployment/register_model.py
