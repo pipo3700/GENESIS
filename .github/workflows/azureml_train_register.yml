@@ -43,6 +43,9 @@ jobs:
         tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_68A04A5D3F714FFEAA878BA16F356FDC }}
         subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6E2B627C9AB541DDB483EB9AA290941A }}
 
+    - name: List directory (debug)
+      run: ls -R
+
     - name: Submit fine-tuning job to Azure ML
       run: |
         echo "BLOB_DATASET_URL=https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
