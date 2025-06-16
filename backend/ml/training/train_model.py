@@ -16,13 +16,13 @@ ml_client = MLClient(
 # Definir entorno de ejecución con tus requirements.txt
 env = Environment(
     image="mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04",  # imagen base
-    conda_file="backend/ml/training/requirements.txt",                   # deps personalizados
+    conda_file="requirements.txt",  # ✅ solo el nombre, ya que está en el mismo code path
     name="cv-adaptation-env"
 )
 
 # Crear el job de entrenamiento serverless
 job = command(
-    code="ml/training",
+    code="backend/ml/training",      # ✅ sube la carpeta que contiene requirements.txt
     command="python train_finetune.py",
     environment=env,
     identity=UserIdentityConfiguration(),
