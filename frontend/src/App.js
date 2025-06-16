@@ -60,7 +60,7 @@ function App() {
     if (!jobId) return alert("No se ha subido ningún archivo aún.");
     setIsGenerating(true);
     try {
-      const response = await fetch("https://api-genesis.azure-api.net/func-genesis-generate/GenerateAdaptedCV", {
+      const response = await fetch("https://api-genesis.azure-api.net/func-genesis-generate/GenerateAdaptedCV/fase1", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
