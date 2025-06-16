@@ -1,16 +1,15 @@
-name: Upload Dataset to Azure Blob Storage
+name: Sync Datasets to Azure Blob Storage
 
 on:
-  workflow_dispatch:  # Lanzamiento manual
+  workflow_dispatch:
 
 env:
   STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
   STORAGE_CONTAINER_NAME: datasets
-  STORAGE_SAS_TOKEN: ${{ secrets.STORAGE_SAS_TOKEN }} # Token SAS con permisos de escritura
-  DATASET_FILE_PATH: ./data/datasetmodel_0_100.csv  # Ajusta la ruta al dataset
+  STORAGE_SAS_TOKEN: ${{ secrets.STORAGE_SAS_TOKEN }}
 
 jobs:
-  upload-dataset:
+  sync-datasets:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,9 +21,21 @@ jobs:
         curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz
         sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
 
-    - name: Upload dataset to Azure Blob Storage
+    - name: List files in Azure Blob Storage
+      id: list_remote
       run: |
-        azcopy copy \
-          "${{ env.DATASET_FILE_PATH }}" \
-          "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}/dataset.jsonl?${{ env.STORAGE_SAS_TOKEN }}" \
-          --overwrite=true
+        azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" --output-level quiet > remote_files.txt
+
+    - name: Upload only new datasets
+      run: |
+        for file in ./data/*.jsonl; do
+          filename=$(basename "$file")
+          if ! grep -q "$filename" remote_files.txt; then
+            echo "Uploading $filename..."
+            azcopy copy "$file" \
+              "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}/$filename?${{ env.STORAGE_SAS_TOKEN }}" \
+              --overwrite=false
+          else
+            echo "Skipping $filename (already uploaded)"
+          fi
+        done
