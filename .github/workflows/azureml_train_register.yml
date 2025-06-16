@@ -1,0 +1,48 @@
+name: Train and Register CV Model on Azure ML (Serverless)
+
+on:
+  workflow_dispatch:
+    inputs:
+      BLOB_DATASET_FILENAME:
+        description: 'Nombre del dataset a usar'
+        required: true
+        default: 'dataset.jsonl'  # fallback
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AZURE_WORKSPACE_NAME: ${{ secrets.AZURE_WORKSPACE_NAME }}
+  HUGGINGFACE_MODEL: "google/flan-t5-base"
+  STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
+
+jobs:
+  train-and-register:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Azure ML SDK and training dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install azure-ai-ml transformers datasets
+
+    - name: Authenticate with Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Submit fine-tuning job to Azure ML
+      run: |
+        echo "BLOB_DATASET_URL=https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
+        python ml/train_model.py \
+          --dataset_url "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
+
+    - name: Register model from latest job output
+      run: python ml/deployment/register_model.py
