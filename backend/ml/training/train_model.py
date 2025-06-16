@@ -16,7 +16,25 @@ ml_client = MLClient(
 # Definir entorno de ejecución con tus requirements.txt
 env = Environment(
     image="mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04",  # imagen base
-    conda_file="backend/ml/training/requirements.txt",  # ✅ solo el nombre, ya que está en el mismo code path
+    conda_file={
+        "name": "cv-adaptation-env",
+        "channels": ["conda-forge", "pytorch"],
+        "dependencies": [
+            "python=3.10",
+            "pip",
+            {
+                "pip": [
+                    "transformers==4.41.1",
+                    "datasets==2.19.1", 
+                    "torch>=2.1",
+                    "accelerate",
+                    "huggingface_hub",
+                    "scipy",
+                    "protobuf"
+                ]
+            }
+        ]
+    },  # ✅ solo el nombre, ya que está en el mismo code path
     name="cv-adaptation-env"
 )
 
