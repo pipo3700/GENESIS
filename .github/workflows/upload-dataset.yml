@@ -9,7 +9,7 @@ env:
   STORAGE_SAS_TOKEN: ${{ secrets.STORAGE_SAS_TOKEN }}
 
 jobs:
-  sync-datasets:
+  sync-and-trigger:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,7 +26,10 @@ jobs:
       run: |
         azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" --output-level quiet > remote_files.txt
 
-    - name: Upload only new datasets
+    - name: Upload and trigger training for new datasets
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO_NAME: ${{ github.repository }}
       run: |
         for file in ./data/*.jsonl; do
           filename=$(basename "$file")
@@ -35,6 +38,11 @@ jobs:
             azcopy copy "$file" \
               "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}/$filename?${{ env.STORAGE_SAS_TOKEN }}" \
               --overwrite=false
+
+            echo "Triggering Azure ML training with $filename..."
+            gh workflow run azureml_train_register.yml \
+              --repo "$REPO_NAME" \
+              --field BLOB_DATASET_FILENAME="$filename"
           else
             echo "Skipping $filename (already uploaded)"
           fi
