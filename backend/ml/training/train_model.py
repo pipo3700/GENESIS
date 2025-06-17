@@ -36,5 +36,5 @@ job = command(
     ),
     queue_settings={"job_tier": "spot"}  # 🔸 Spot = más barato
 )
-
+job.compute = "serverless"
 ml_client.jobs.create_or_update(job)
