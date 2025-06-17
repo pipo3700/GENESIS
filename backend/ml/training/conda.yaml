@@ -1,0 +1,15 @@
+name: cv-adaptation-env
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - transformers==4.41.1
+      - datasets==2.19.1
+      - torch>=2.1
+      - accelerate
+      - huggingface_hub
+      - scipy
+      - protobuf
