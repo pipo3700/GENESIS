@@ -34,6 +34,7 @@ job = command(
         instance_type="Standard_DS1_v2",  # 🔸 CPU barata
         instance_count=1
     ),
+    queue_settings={"job_tier": "spot"}  # 🔸 Spot = más barato
 )
-job.compute = "serverless"
+
 ml_client.jobs.create_or_update(job)
