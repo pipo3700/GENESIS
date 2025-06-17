@@ -10,9 +10,9 @@ credential = DefaultAzureCredential()
 # Autenticación con Azure
 ml_client = MLClient(
     credential=credential,
-    subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
-    resource_group=os.environ["AZURE_RESOURCE_GROUP"],
-    workspace=os.environ["AZURE_WORKSPACE_NAME"]
+    subscription_id="5ba06e46-090f-43a2-94d4-208518bd44cd",
+    resource_group="Genesis",
+    workspace="genesis-ml"
 )
 
 # Definir entorno de ejecución con tus requirements.txt
