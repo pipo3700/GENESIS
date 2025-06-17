@@ -31,7 +31,7 @@ job = command(
     experiment_name="cv-adaptation",
     display_name="fine-tune-cv-model-cheap",
     resources=JobResourceConfiguration(
-        instance_type="Standard_DS1_v2",  # 🔸 CPU barata
+        instance_type="Standard_D2ds_v4",  # 🔸 CPU barata
         instance_count=1
     ),
     queue_settings={"job_tier": "spot"}  # 🔸 Spot = más barato
