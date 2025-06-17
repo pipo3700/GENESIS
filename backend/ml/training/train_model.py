@@ -4,39 +4,21 @@ import os
 from azure.identity import DefaultAzureCredential
 from azure.ai.ml import MLClient, command
 from azure.ai.ml.entities import Environment, JobResourceConfiguration, UserIdentityConfiguration
-from azure.identity import DefaultAzureCredential
+
 
 credential = DefaultAzureCredential()
 # Autenticación con Azure
 ml_client = MLClient(
     credential=credential,
-    subscription_id="5ba06e46-090f-43a2-94d4-208518bd44cd",
-    resource_group="Genesis",
-    workspace="genesis-ml"
+    subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
+    resource_group_name=os.environ["AZURE_RESOURCE_GROUP"],
+    workspace_name=os.environ["AZURE_WORKSPACE_NAME"]
 )
 
 # Definir entorno de ejecución con tus requirements.txt
 env = Environment(
     image="mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04",  # imagen base
-    conda_file={
-        "name": "cv-adaptation-env",
-        "channels": ["conda-forge", "pytorch"],
-        "dependencies": [
-            "python=3.10",
-            "pip",
-            {
-                "pip": [
-                    "transformers==4.41.1",
-                    "datasets==2.19.1", 
-                    "torch>=2.1",
-                    "accelerate",
-                    "huggingface_hub",
-                    "scipy",
-                    "protobuf"
-                ]
-            }
-        ]
-    },  # ✅ solo el nombre, ya que está en el mismo code path
+    conda_file="backend/ml/training/conda.yaml",
     name="cv-adaptation-env"
 )
 
