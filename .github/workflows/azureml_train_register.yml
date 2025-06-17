@@ -2,11 +2,6 @@ name: Train and Register CV Model on Azure ML (Serverless)
 
 on:
   workflow_dispatch:
-    inputs:
-      BLOB_DATASET_FILENAME:
-        description: 'Nombre del dataset a usar'
-        required: true
-        default: 'dataset.jsonl'  # fallback
 
 env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -43,14 +38,11 @@ jobs:
         tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_68A04A5D3F714FFEAA878BA16F356FDC }}
         subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6E2B627C9AB541DDB483EB9AA290941A }}
 
-    - name: List directory (debug)
-      run: ls -R
-
     - name: Submit fine-tuning job to Azure ML
       run: |
-        echo "BLOB_DATASET_URL=https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
-        python backend/ml/training/train_model.py \
-          --dataset_url "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/${{ github.event.inputs.BLOB_DATASET_FILENAME }}"
+        DATASET_URL="https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/datasets/datasetmodel_0_100.jsonl"
+        echo "Using dataset: $DATASET_URL"
+        python backend/ml/training/train_model.py --dataset_url "$DATASET_URL"
 
     - name: Register model from latest job output
       run: python backend/ml/deployment/register_model.py

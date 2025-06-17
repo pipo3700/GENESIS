@@ -4,7 +4,9 @@ import os
 from azure.identity import DefaultAzureCredential
 from azure.ai.ml import MLClient, command
 from azure.ai.ml.entities import Environment, JobResourceConfiguration, UserIdentityConfiguration
-
+print("SUBSCRIPTION:", os.environ.get("AZURE_SUBSCRIPTION_ID"))
+print("RESOURCE GROUP:", os.environ.get("AZURE_RESOURCE_GROUP"))
+print("WORKSPACE NAME:", os.environ.get("AZURE_WORKSPACE_NAME"))
 # Autenticación con Azure
 ml_client = MLClient(
     DefaultAzureCredential(),
