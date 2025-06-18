@@ -12,9 +12,12 @@ env:
 jobs:
   register:
     runs-on: ubuntu-latest
+    
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
-      id-token: write  
+      id-token: write
       contents: read
+      actions: read  
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,16 +27,34 @@ jobs:
         with:
           python-version: '3.10'
 
+      
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: ./model/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      # ✅ Verificar que el modelo existe
+      - name: Verify model exists
+        run: |
+          ls -la ./model/
+          if [ ! -f "./model/config.json" ]; then
+            echo "❌ Error: Model files not found"
+            exit 1
+          fi
+          echo "✅ Model files found successfully"
+
       - name: Install Azure ML SDK
         run: pip install azureml-core azureml-mlflow
 
       - name: Login to Azure
         uses: azure/login@v2
         with:
-            client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_72CA7AEE169644A2A6D6EE7D78CEB1A1 }}
-            tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_68A04A5D3F714FFEAA878BA16F356FDC }}
-            subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6E2B627C9AB541DDB483EB9AA290941A }}
-
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_72CA7AEE169644A2A6D6EE7D78CEB1A1 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_68A04A5D3F714FFEAA878BA16F356FDC }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6E2B627C9AB541DDB483EB9AA290941A }}
 
       - name: Install deployment dependencies
         run: pip install -r backend/ml/deployment/requirements.txt
