@@ -97,6 +97,47 @@ function App() {
     }
   };
 
+  const handleGenerateFineTuned = async () => {
+    if (!jobId) return alert("No se ha subido ningún archivo aún.");
+    setIsGenerating(true);
+    try {
+      const response = await fetch("https://api-genesis.azure-api.net/func-genesis-generate-phase2/GenerateCVadaptedphase2", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Ocp-Apim-Subscription-Key": "75efa2c8485243f5ae8397740e084a8e"
+        },
+        body: JSON.stringify({ jobId })
+      });
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (e) {
+        const text = await response.text();
+        console.error("Respuesta no JSON:", text);
+        alert("Error inesperado en el servidor.");
+        return;
+      }
+
+      if (response.ok && result.generatedCvUrl) {
+        const a = document.createElement("a");
+        a.href = result.generatedCvUrl;
+        a.download = `CV_Adaptado_FT_${jobId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (err) {
+      alert("Error generando el CV fine-tuned: " + err.message);
+    } finally {
+      setIsGenerating(false);
+    }
+};
+
+
   return (
     <div className="App">
       <h1>Adapted CV Generator</h1>
@@ -126,8 +167,17 @@ function App() {
           <button onClick={handleGenerate} disabled={isGenerating}>
             {isGenerating ? 'Generating CV...' : 'Generar CV Adaptado'}
           </button>
+
+          <button
+            onClick={handleGenerateFineTuned}
+            disabled={isGenerating}
+            style={{ marginLeft: '10px', backgroundColor: '#4CAF50', color: 'white' }}
+          >
+            {isGenerating ? 'Generating CV...' : 'Generar CV Adaptado (Fine-tuning)'}
+          </button>
         </div>
       )}
+
 
       <img src={logoLeft} alt="ETSINF logo" className="bottom-left" />
       <img src={logoRight} alt="UPV logo" className="bottom-right" />
