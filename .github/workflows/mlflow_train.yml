@@ -8,7 +8,7 @@ on:
         required: true
 
 env:
-  DATASET_PATH: ./data/datasetmodel_0_100.jsonl
+  DATASET_PATH: ./data/${{ github.event.inputs.BLOB_DATASET_FILENAME }}
   HUGGINGFACE_MODEL: "google/flan-t5-base"
 
 jobs:
