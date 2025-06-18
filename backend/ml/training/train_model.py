@@ -9,6 +9,11 @@ from azure.identity import DefaultAzureCredential
 from azure.ai.ml.entities import Model
 
 # Config
+credential = ClientSecretCredential(
+    tenant_id=os.getenv("AZURE_TENANT_ID"),
+    client_id=os.getenv("AZURE_CLIENT_ID"),
+    client_secret=os.getenv("AZURE_CLIENT_SECRET"),
+)
 MODEL_NAME = os.getenv("HUGGINGFACE_MODEL")
 DATASET_PATH = os.getenv("DATASET_PATH")
 AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
@@ -16,7 +21,7 @@ AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 AZURE_WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
 
 # Azure ML Client
-ml_client = MLClient(DefaultAzureCredential(), AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP, AZURE_WORKSPACE_NAME)
+ml_client = MLClient(credential, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP, AZURE_WORKSPACE_NAME)
 
 # Intentar cargar el modelo más reciente registrado
 try:
@@ -62,7 +67,7 @@ trainer = Seq2SeqTrainer(
 )
 
 # MLflow tracking
-mlflow.set_tracking_uri("file:///mlruns")
+mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("FineTuningGenesis")
 
 with mlflow.start_run():
