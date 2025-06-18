@@ -5,7 +5,7 @@ import mlflow.transformers
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from datasets import load_dataset
 from azure.ai.ml import MLClient
-from azure.identity import DefaultAzureCredential
+from azure.identity import ClientSecretCredential
 from azure.ai.ml.entities import Model
 
 # Config
