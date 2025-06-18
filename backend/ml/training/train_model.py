@@ -1,6 +1,7 @@
 import os
 import mlflow
 import mlflow.transformers
+import mlflow.pytorch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from datasets import load_dataset
 from azure.ai.ml import MLClient
@@ -75,5 +76,5 @@ with mlflow.start_run():
     trainer.train()
     metrics = trainer.evaluate()
     mlflow.log_metrics(metrics)
-    mlflow.transformers.log_model(trainer.model, artifact_path="model")
+    mlflow.pytorch.log_model(trainer.model, artifact_path="model")
     trainer.save_model("./model")
