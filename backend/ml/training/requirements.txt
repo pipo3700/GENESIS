@@ -6,3 +6,4 @@ accelerate==0.30.1
 torch>=2.1
 azure-ai-ml==1.16.0
 azure-identity==1.15.0
+marshmallow==3.19.0
