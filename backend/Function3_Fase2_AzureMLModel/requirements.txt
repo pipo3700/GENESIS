@@ -10,4 +10,4 @@ transformers
 torch
 numpy
 reportlab
-PyMuPDF==1.23.4  # para fitz
+PyMuPDF==1.23.7
