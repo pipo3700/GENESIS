@@ -43,7 +43,7 @@ jobs:
               --overwrite=false
 
             echo "Triggering Azure ML training with $filename..."
-            gh workflow run azureml_train.yml \
+            gh workflow run mlflow_train.yml \
               --repo "$REPO_NAME" \
               --field BLOB_DATASET_FILENAME="$filename"
           else
