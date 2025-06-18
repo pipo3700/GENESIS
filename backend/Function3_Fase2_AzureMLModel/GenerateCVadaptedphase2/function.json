@@ -1,12 +1,11 @@
 {
   "bindings": [
     {
-      "authLevel": "function",
+      "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["post", "options"],
-      "route": "GenerateCVadaptedphase2"
+      "methods": ["post", "options"]
     },
     {
       "type": "http",
