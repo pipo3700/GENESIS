@@ -8,6 +8,8 @@ on:
   push:
     branches:
       - master
+    paths:
+      - 'backend/Function3_Fase2_AzureMLModel/**'
   workflow_dispatch:
 
 env:
