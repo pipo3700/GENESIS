@@ -22,6 +22,13 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+      
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_72CA7AEE169644A2A6D6EE7D78CEB1A1 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_68A04A5D3F714FFEAA878BA16F356FDC }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6E2B627C9AB541DDB483EB9AA290941A }}
 
       - name: Install dependencies
         run: pip install -r backend/ml/training/requirements.txt
