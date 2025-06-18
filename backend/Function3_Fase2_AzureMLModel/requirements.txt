@@ -11,3 +11,5 @@ torch
 numpy
 reportlab
 PyMuPDF==1.23.7
+tokenizers
+sentencepiece

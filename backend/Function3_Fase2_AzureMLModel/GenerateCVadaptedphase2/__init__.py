@@ -2,7 +2,7 @@ import logging, os, json, time, base64, fitz
 from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
 from azure.ai.ml import MLClient
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 from io import BytesIO
 from numpy import dot
@@ -15,6 +15,7 @@ _cosmos = None
 _container = None
 _blob_service = None
 _pipe = None
+_ml_client = None
 
 def fix_cosmos_key(key):
     key = key.strip()
@@ -38,6 +39,39 @@ def get_blob_service():
     if _blob_service is None:
         _blob_service = BlobServiceClient.from_connection_string(os.environ["STORAGE_CONNECTION_STRING"])
     return _blob_service
+
+def get_ml_client():
+    global _ml_client
+    if _ml_client is None:
+        try:
+            # Try Managed Identity first
+            credential = ManagedIdentityCredential()
+            _ml_client = MLClient(
+                credential=credential,
+                subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
+                resource_group_name=os.environ["AZURE_RESOURCE_GROUP"],
+                workspace_name=os.environ["AZURE_WORKSPACE_NAME"]
+            )
+        except Exception as e:
+            logging.warning(f"Managed Identity failed: {e}")
+            # Fallback to service principal if environment variables are set
+            try:
+                from azure.identity import ClientSecretCredential
+                credential = ClientSecretCredential(
+                    tenant_id=os.environ["AZURE_TENANT_ID"],
+                    client_id=os.environ["AZURE_CLIENT_ID"],
+                    client_secret=os.environ["AZURE_CLIENT_SECRET"]
+                )
+                _ml_client = MLClient(
+                    credential=credential,
+                    subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
+                    resource_group_name=os.environ["AZURE_RESOURCE_GROUP"],
+                    workspace_name=os.environ["AZURE_WORKSPACE_NAME"]
+                )
+            except Exception as e2:
+                logging.error(f"Service Principal auth also failed: {e2}")
+                raise Exception("Unable to authenticate with Azure ML")
+    return _ml_client
 
 def cosine_sim(a, b):
     return dot(a, b) / (norm(a) * norm(b))
@@ -88,23 +122,31 @@ def upload_pdf(pdf_stream, job_id):
     return f"https://{account_name}.blob.core.windows.net/upload/{blob_name}?{sas_token}"
 
 def get_latest_registered_model():
-    ml_client = MLClient(
-        credential=DefaultAzureCredential(),
-        subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"],
-        resource_group_name=os.environ["AZURE_RESOURCE_GROUP"],
-        workspace_name=os.environ["AZURE_WORKSPACE_NAME"]
-    )
-    models = ml_client.models.list(name="genesis-model")
-    latest_model = max(models, key=lambda m: m.version)
-    return latest_model.path
+    try:
+        ml_client = get_ml_client()
+        models = ml_client.models.list(name="genesis-model")
+        latest_model = max(models, key=lambda m: m.version)
+        return latest_model.path
+    except Exception as e:
+        logging.error(f"Failed to get ML model: {e}")
+        # Fallback: use a hardcoded model path or environment variable
+        fallback_path = os.environ.get("MODEL_PATH", "microsoft/DialoGPT-medium")
+        logging.warning(f"Using fallback model: {fallback_path}")
+        return fallback_path
 
 def get_model_pipeline():
     global _pipe
     if _pipe is None:
-        model_uri = get_latest_registered_model()
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_uri)
-        tokenizer = AutoTokenizer.from_pretrained(model_uri)
-        _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+        try:
+            model_uri = get_latest_registered_model()
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_uri)
+            tokenizer = AutoTokenizer.from_pretrained(model_uri)
+            _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+        except Exception as e:
+            logging.error(f"Failed to load custom model: {e}")
+            # Fallback to a public model
+            logging.warning("Using fallback public model")
+            _pipe = pipeline("text2text-generation", model="google/flan-t5-small")
     return _pipe
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
