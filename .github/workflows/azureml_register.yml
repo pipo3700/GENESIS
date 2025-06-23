@@ -2,14 +2,10 @@
 name: Register Trained Model in Azure ML
 
 on:
-  workflow_call:
-    inputs:
-      model-path:
-        required: true
-        type: string
-      model-name:
-        required: true
-        type: string
+  workflow_run:
+    workflows: ["Train Hugging Face Model"]
+    types:
+      - completed
 
 env:
   MODEL_NAME: "genesis-model"
