@@ -25,25 +25,32 @@ jobs:
         curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz
         sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
 
-    - name: List blobs using curl and Upload and trigger training for new datasets
+    - name: List blobs using xmllint and upload new datasets
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         REPO_NAME: ${{ github.repository }}
       run: |
         echo "📥 Listando blobs remotos desde Azure Blob Storage..."
 
+        # Instalar xmllint si no está (libxml2-utils)
+        sudo apt-get update -y
+        sudo apt-get install -y libxml2-utils
+
+        # Obtener listado de blobs en formato XML
         curl_url="https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${STORAGE_CONTAINER_NAME}?restype=container&comp=list&${STORAGE_SAS_TOKEN}"
         echo "🌐 URL: $curl_url"
 
         curl -s "$curl_url" > curl_output.xml
-        echo "📄 Respuesta XML:"
-        cat curl_output.xml
 
-        # Extraer nombres de blobs
-        tr '>' '>\n' < curl_output.xml | grep "<Name>" | awk -F'[<>]' '{print $3}' > remote_basenames.txt
+        echo "📄 Respuesta XML parcial:"
+        head -n 20 curl_output.xml
 
-        echo "📄 Contenido de remote_basenames.txt:"
-        cat -A remote_basenames.txt || echo "❌ No existe o está vacío"
+        # Extraer todos los nombres de blobs usando xmllint
+        xmllint --xpath '//Blob/Name/text()' curl_output.xml 2>/dev/null | \
+          sed 's/<Name>/\n/g; s/<\/Name>/\n/g' | tr -d '\r' | sed '/^\s*$/d' > remote_basenames.txt
+
+        echo "📄 Contenido limpio de remote_basenames.txt:"
+        cat remote_basenames.txt || echo "❌ Error al leer nombres de blobs"
 
         if [[ ! -s remote_basenames.txt ]]; then
           echo "⚠️ remote_basenames.txt está vacío, se subirán todos los archivos locales"
@@ -55,7 +62,7 @@ jobs:
             filename=$(basename "$file")
             echo "🔍 Checking $filename..."
 
-            if ! grep -Fx -- "$filename" <(tr -d '\r' < remote_basenames.txt); then
+            if ! grep -Fx -- "$filename" < remote_basenames.txt; then
               echo "⬆️ Subiendo $filename a Blob Storage..."
               azcopy copy "$file" \
                 "https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${STORAGE_CONTAINER_NAME}/$filename?${STORAGE_SAS_TOKEN}" \
