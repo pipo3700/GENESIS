@@ -1,52 +1,61 @@
 import os
 import mlflow
-import mlflow.transformers
 import mlflow.pytorch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from datasets import load_dataset
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
-from azure.ai.ml.entities import Model
+from pathlib import Path
 
-# 💡 Limpiar variables si existen para forzar el uso del token federado
-for var in ["AZURE_CLIENT_ID", "AZURE_TENANT_ID", "AZURE_CLIENT_SECRET"]:
-    os.environ.pop(var, None)
-
-# Configuración desde entorno
-MODEL_NAME = os.getenv("HUGGINGFACE_MODEL")
+# Cargar configuración desde variables de entorno
+MODEL_NAME = os.getenv("HUGGINGFACE_MODEL", "google/flan-t5-base")
 DATASET_PATH = os.getenv("DATASET_PATH")
 AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
 AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 AZURE_WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
 
-# Cliente Azure ML con token federado (gracias a azure/login@v2)
-ml_client = MLClient(DefaultAzureCredential(), AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP, AZURE_WORKSPACE_NAME)
+# Inicializar cliente de Azure ML
+ml_client = MLClient(
+    DefaultAzureCredential(), 
+    AZURE_SUBSCRIPTION_ID, 
+    AZURE_RESOURCE_GROUP, 
+    AZURE_WORKSPACE_NAME
+)
 
-# Intentar cargar el último modelo registrado
+# Intentar cargar la última versión del modelo desde Azure ML
+download_path = Path("downloaded_model")
 try:
-    model_list = list(ml_client.models.list(name="genesis-model"))
-    model_list = sorted(model_list, key=lambda x: x.version, reverse=True)
-    latest_model_path = model_list[0].path
-    print(f"Cargando modelo más reciente desde Azure ML: {latest_model_path}")
-    model = AutoModelForSeq2SeqLM.from_pretrained(latest_model_path)
+    models = list(ml_client.models.list(name="genesis-model"))
+    if models:
+        latest_model = sorted(models, key=lambda m: m.version, reverse=True)[0]
+        ml_client.models.download(
+            name=latest_model.name, 
+            version=latest_model.version, 
+            download_path=download_path
+        )
+        print(f"✅ Modelo descargado desde Azure ML en: {download_path}")
+        model = AutoModelForSeq2SeqLM.from_pretrained(download_path)
+    else:
+        raise Exception("No se encontró ninguna versión registrada")
 except Exception as e:
-    print("No hay modelo previo. Usando modelo base de Hugging Face.")
+    print(f"⚠️ No se pudo recuperar un modelo registrado. Motivo: {e}")
+    print("➡️  Se utilizará el modelo base de Hugging Face.")
     model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
-# Tokenizador
+# Tokenizador (siempre desde Hugging Face directamente)
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
+# Cargar y preprocesar el dataset
 def preprocess(example):
     inputs = tokenizer(example["input"], truncation=True, padding="max_length", max_length=512)
     targets = tokenizer(example["target"], truncation=True, padding="max_length", max_length=128)
     inputs["labels"] = targets["input_ids"]
     return inputs
 
-# Dataset
 dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 dataset = dataset.map(preprocess, remove_columns=["input", "target"])
 
-# Entrenamiento
+# Configurar entrenamiento
 training_args = Seq2SeqTrainingArguments(
     output_dir="./results",
     num_train_epochs=1,
@@ -66,15 +75,20 @@ trainer = Seq2SeqTrainer(
     tokenizer=tokenizer,
 )
 
-# MLflow tracking
+# Tracking con MLflow
 mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("FineTuningGenesis")
 
 with mlflow.start_run():
     mlflow.log_param("model", MODEL_NAME)
     mlflow.log_param("epochs", training_args.num_train_epochs)
+    
     trainer.train()
     metrics = trainer.evaluate()
     mlflow.log_metrics(metrics)
-    mlflow.pytorch.log_model(trainer.model, artifact_path="model")
+    
+    # Guardar y exportar modelo
     trainer.save_model("./model")
+    mlflow.pytorch.log_model(trainer.model, artifact_path="model")
+
+print("✅ Fine-tuning y guardado completado correctamente.")
