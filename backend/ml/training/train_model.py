@@ -5,33 +5,36 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, S
 from datasets import load_dataset
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential
-from azure.ai.ml import MLClient
-from azure.ai.ml.entities import Workspace
 from pathlib import Path
 
-# Configurar entorno
+# Cargar configuración desde variables de entorno
 MODEL_NAME = os.getenv("HUGGINGFACE_MODEL", "google/flan-t5-base")
 DATASET_PATH = os.getenv("DATASET_PATH")
 AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
 AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 AZURE_WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
 
-# Autenticación
-credential = DefaultAzureCredential(exclude_environment_credential=True)
-ml_client = MLClient(credential, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP, AZURE_WORKSPACE_NAME)
+# Inicializar cliente de Azure ML usando federated identity (GitHub Actions)
+try:
+    credential = DefaultAzureCredential(exclude_environment_credential=True)
+    ml_client = MLClient(
+        credential=credential,
+        subscription_id=AZURE_SUBSCRIPTION_ID,
+        resource_group_name=AZURE_RESOURCE_GROUP,
+        workspace_name=AZURE_WORKSPACE_NAME
+    )
+except Exception as e:
+    raise RuntimeError(f"❌ Error autenticando con Azure ML: {e}")
 
-# Configurar MLflow para usar Azure ML como backend
-mlflow.set_tracking_uri(ml_client.workspaces.get(AZURE_WORKSPACE_NAME).mlflow_tracking_uri)
-
-# Descargar el último modelo si existe
+# Intentar cargar el último modelo desde Azure ML
 download_path = Path("downloaded_model")
 try:
     models = list(ml_client.models.list(name="genesis-model"))
     if models:
         latest_model = sorted(models, key=lambda m: m.version, reverse=True)[0]
         ml_client.models.download(
-            name=latest_model.name,
-            version=latest_model.version,
+            name=latest_model.name, 
+            version=latest_model.version, 
             download_path=download_path
         )
         print(f"✅ Modelo descargado desde Azure ML en: {download_path}")
@@ -46,7 +49,7 @@ except Exception as e:
 # Tokenizador
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-# Cargar y preprocesar dataset
+# Preprocesar dataset
 def preprocess(example):
     inputs = tokenizer(example["input"], truncation=True, padding="max_length", max_length=512)
     targets = tokenizer(example["target"], truncation=True, padding="max_length", max_length=128)
@@ -76,17 +79,19 @@ trainer = Seq2SeqTrainer(
     tokenizer=tokenizer,
 )
 
-# Iniciar experimento en Azure ML
+# Tracking con MLflow
+mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("FineTuningGenesis")
 
 with mlflow.start_run():
     mlflow.log_param("model", MODEL_NAME)
     mlflow.log_param("epochs", training_args.num_train_epochs)
-
+    
     trainer.train()
     metrics = trainer.evaluate()
     mlflow.log_metrics(metrics)
-
+    
+    # Guardar y exportar modelo
     trainer.save_model("./model")
     mlflow.pytorch.log_model(trainer.model, artifact_path="model")
 
