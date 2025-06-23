@@ -1,10 +1,13 @@
 name: Sync Datasets to Azure Blob Storage
+
 on:
   workflow_dispatch:
+
 env:
   STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
   STORAGE_CONTAINER_NAME: datasets
   STORAGE_SAS_TOKEN: ${{ secrets.STORAGE_SAS_TOKEN }}
+
 jobs:
   sync-and-trigger:
     runs-on: ubuntu-latest
@@ -12,37 +15,22 @@ jobs:
       contents: read
       actions: write
       id-token: write
+
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
+
     - name: Install AzCopy
       run: |
         curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz
         sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
-    
-    # OPCIÓN 1: Usar awk para extraer nombres de archivo más robustamente
-    - name: List blobs with AzCopy and extract filenames
+
+    - name: List blobs using curl and xmllint
       run: |
-        azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" \
-          --output-level quiet | awk -F'/' '{print $NF}' | grep -v '^$' | sort > remote_basenames.txt
-    
-    # OPCIÓN 2: Alternativa más específica para archivos .jsonl
-    # - name: List blobs with AzCopy and extract filenames
-    #   run: |
-    #     azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" \
-    #       --output-level quiet | grep '\.jsonl$' | awk -F'/' '{print $NF}' > remote_basenames.txt
-    
-    # OPCIÓN 3: Usar basename en un bucle
-    # - name: List blobs with AzCopy and extract filenames
-    #   run: |
-    #     azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" \
-    #       --output-level quiet > full_paths.txt
-    #     while IFS= read -r line; do
-    #       if [[ -n "$line" ]]; then
-    #         basename "$line"
-    #       fi
-    #     done < full_paths.txt > remote_basenames.txt
-    
+        curl -s "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?restype=container&comp=list&${{ env.STORAGE_SAS_TOKEN }}" \
+        | xmllint --xpath "//Blob/Name/text()" - 2>/dev/null \
+        | tr ' ' '\n' > remote_basenames.txt
+
     - name: Debug file listings
       run: |
         echo "== Local files =="
@@ -51,44 +39,39 @@ jobs:
         cat remote_basenames.txt || true
         echo "== Remote basenames count =="
         wc -l remote_basenames.txt || true
-        echo "== Raw azcopy output =="
-        azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" \
-          --output-level quiet | head -10
-    
+
     - name: Upload and trigger training for new datasets
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         REPO_NAME: ${{ github.repository }}
       run: |
-        # Verificar que el archivo de basenames existe y no está vacío
         if [[ ! -s remote_basenames.txt ]]; then
-          echo "Warning: remote_basenames.txt is empty or doesn't exist"
-          echo "All local files will be considered as new"
+          echo "Warning: remote_basenames.txt is empty"
           touch remote_basenames.txt
         fi
-        
+
         for file in ./data/*.jsonl; do
           if [[ -f "$file" ]]; then
             filename=$(basename "$file")
             echo "Checking $filename..."
-            
+
             if ! grep -Fxq "$filename" remote_basenames.txt; then
               echo "Uploading $filename..."
               azcopy copy "$file" \
                 "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}/$filename?${{ env.STORAGE_SAS_TOKEN }}" \
                 --overwrite=false
-              
+
               if [ $? -eq 0 ]; then
-                echo "Successfully uploaded $filename"
-                echo "Triggering Azure ML training with $filename..."
+                echo "✅ Successfully uploaded $filename"
+                echo "🚀 Triggering Azure ML training with $filename..."
                 gh workflow run mlflow_train.yml \
                   --repo "$REPO_NAME" \
                   --field BLOB_DATASET_FILENAME="$filename"
               else
-                echo "Failed to upload $filename"
+                echo "❌ Failed to upload $filename"
               fi
             else
-              echo "Skipping $filename (already uploaded)"
+              echo "⏭️ Skipping $filename (already uploaded)"
             fi
           fi
         done
