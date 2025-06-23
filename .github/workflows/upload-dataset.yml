@@ -24,10 +24,11 @@ jobs:
         curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz
         sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
 
-    - name: List blobs using curl and xmllint
+    - name: List blobs using curl (compatible alternativa a xmllint)
       run: |
         curl -s "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?restype=container&comp=list&${{ env.STORAGE_SAS_TOKEN }}" \
-        | xmllint --xpath "//Blob/Name/text()" - 2>/dev/null | tr ' ' '\n' > remote_basenames.txt
+        | tr '>' '>\n' | grep "<Name>" | awk -F'[<>]' '{print $3}' > remote_basenames.txt
+
 
     - name: Debug file listings
       run: |
