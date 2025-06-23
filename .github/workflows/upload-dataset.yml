@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: read
       actions: write
+      id-token: write
 
     steps:
     - name: Checkout repo
@@ -24,12 +25,20 @@ jobs:
         curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz
         sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
 
-    - name: List files in Azure Blob Storage
-      id: list_remote
+    - name: Install Azure CLI
+      uses: azure/setup-azure@v3
+
+    - name: Login to Azure
+      run: az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+    - name: List blobs in Azure Blob Storage
       run: |
-        azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" --output-level quiet > remote_files.txt
-        # Extraer solo los nombres de archivo (basename)
-        sed 's|.*/||' remote_files.txt > remote_basenames.txt
+        az storage blob list \
+          --account-name $STORAGE_ACCOUNT_NAME \
+          --container-name $STORAGE_CONTAINER_NAME \
+          --auth-mode login \
+          --query "[].name" \
+          -o tsv > remote_basenames.txt
 
     - name: Debug file listings
       run: |
