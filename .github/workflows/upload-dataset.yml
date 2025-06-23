@@ -6,7 +6,7 @@ on:
 env:
   STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
   STORAGE_CONTAINER_NAME: datasets
-  STORAGE_SAS_TOKEN: "?${{ secrets.STORAGE_SAS_TOKEN }}"
+  STORAGE_SAS_TOKEN: ${{ secrets.STORAGE_SAS_TOKEN }}
 
 jobs:
   sync-and-trigger:
@@ -31,11 +31,19 @@ jobs:
         REPO_NAME: ${{ github.repository }}
       run: |
         echo "📥 Listando blobs remotos desde Azure Blob Storage..."
-        curl -s "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?restype=container&comp=list&${{ env.STORAGE_SAS_TOKEN }}" \
-        | tr '>' '>\n' | grep "<Name>" | awk -F'[<>]' '{print $3}' > remote_basenames.txt
+
+        curl_url="https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${STORAGE_CONTAINER_NAME}?restype=container&comp=list&${STORAGE_SAS_TOKEN}"
+        echo "🌐 URL: $curl_url"
+
+        curl -s "$curl_url" > curl_output.xml
+        echo "📄 Respuesta XML:"
+        cat curl_output.xml
+
+        # Extraer nombres de blobs
+        tr '>' '>\n' < curl_output.xml | grep "<Name>" | awk -F'[<>]' '{print $3}' > remote_basenames.txt
 
         echo "📄 Contenido de remote_basenames.txt:"
-        cat -A remote_basenames.txt || echo "❌ No existe"
+        cat -A remote_basenames.txt || echo "❌ No existe o está vacío"
 
         if [[ ! -s remote_basenames.txt ]]; then
           echo "⚠️ remote_basenames.txt está vacío, se subirán todos los archivos locales"
@@ -46,24 +54,24 @@ jobs:
           if [[ -f "$file" ]]; then
             filename=$(basename "$file")
             echo "🔍 Checking $filename..."
-            
+
             if ! grep -Fx -- "$filename" <(tr -d '\r' < remote_basenames.txt); then
-              echo "⬆️ Uploading $filename..."
+              echo "⬆️ Subiendo $filename a Blob Storage..."
               azcopy copy "$file" \
-                "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}/$filename?${{ env.STORAGE_SAS_TOKEN }}" \
+                "https://${STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${STORAGE_CONTAINER_NAME}/$filename?${STORAGE_SAS_TOKEN}" \
                 --overwrite=false
 
               if [ $? -eq 0 ]; then
-                echo "✅ Successfully uploaded $filename"
-                echo "🚀 Triggering Azure ML training with $filename..."
+                echo "✅ Upload exitoso de $filename"
+                echo "🚀 Ejecutando workflow de entrenamiento en Azure ML..."
                 gh workflow run mlflow_train.yml \
                   --repo "$REPO_NAME" \
                   --field BLOB_DATASET_FILENAME="$filename"
               else
-                echo "❌ Failed to upload $filename"
+                echo "❌ Error al subir $filename con AzCopy"
               fi
             else
-              echo "⏭️ Skipping $filename (already uploaded)"
+              echo "⏭️ Skipping $filename (ya existe en Blob)"
             fi
           fi
         done
