@@ -14,15 +14,19 @@ AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
 AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 AZURE_WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
 
-# Inicializar cliente de Azure ML
-ml_client = MLClient(
-    DefaultAzureCredential(), 
-    AZURE_SUBSCRIPTION_ID, 
-    AZURE_RESOURCE_GROUP, 
-    AZURE_WORKSPACE_NAME
-)
+# Inicializar cliente de Azure ML usando federated auth
+try:
+    credential = DefaultAzureCredential()
+    ml_client = MLClient(
+        credential=credential,
+        subscription_id=AZURE_SUBSCRIPTION_ID,
+        resource_group_name=AZURE_RESOURCE_GROUP,
+        workspace_name=AZURE_WORKSPACE_NAME
+    )
+except Exception as e:
+    raise RuntimeError(f"❌ Error autenticando con Azure ML: {e}")
 
-# Intentar cargar la última versión del modelo desde Azure ML
+# Intentar cargar el último modelo desde Azure ML
 download_path = Path("downloaded_model")
 try:
     models = list(ml_client.models.list(name="genesis-model"))
@@ -39,7 +43,7 @@ try:
         raise Exception("No se encontró ninguna versión registrada")
 except Exception as e:
     print(f"⚠️ No se pudo recuperar un modelo registrado. Motivo: {e}")
-    print("➡️  Se utilizará el modelo base de Hugging Face.")
+    print("➡️ Se utilizará el modelo base de Hugging Face.")
     model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
 # Tokenizador (siempre desde Hugging Face directamente)
