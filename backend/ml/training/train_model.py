@@ -4,7 +4,7 @@ import mlflow.pytorch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from datasets import load_dataset
 from azure.ai.ml import MLClient
-from azure.identity import ManagedIdentityCredential
+from azure.identity import DefaultAzureCredential
 from pathlib import Path
 
 # Cargar configuración desde variables de entorno
@@ -14,9 +14,9 @@ AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
 AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
 AZURE_WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
 
-# Inicializar cliente de Azure ML usando federated auth
+# Inicializar cliente de Azure ML usando federated identity (GitHub Actions)
 try:
-    credential = ManagedIdentityCredential()
+    credential = DefaultAzureCredential(exclude_environment_credential=True)
     ml_client = MLClient(
         credential=credential,
         subscription_id=AZURE_SUBSCRIPTION_ID,
@@ -46,10 +46,10 @@ except Exception as e:
     print("➡️ Se utilizará el modelo base de Hugging Face.")
     model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
-# Tokenizador (siempre desde Hugging Face directamente)
+# Tokenizador
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-# Cargar y preprocesar el dataset
+# Preprocesar dataset
 def preprocess(example):
     inputs = tokenizer(example["input"], truncation=True, padding="max_length", max_length=512)
     targets = tokenizer(example["target"], truncation=True, padding="max_length", max_length=128)
