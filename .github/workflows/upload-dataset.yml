@@ -6,7 +6,7 @@ on:
 env:
   STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
   STORAGE_CONTAINER_NAME: datasets
-  STORAGE_SAS_TOKEN: ${{ secrets.STORAGE_SAS_TOKEN }}
+  STORAGE_SAS_TOKEN: "?${{ secrets.STORAGE_SAS_TOKEN }}"
 
 jobs:
   sync-and-trigger:
