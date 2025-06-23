@@ -28,6 +28,15 @@ jobs:
       id: list_remote
       run: |
         azcopy list "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}?${{ env.STORAGE_SAS_TOKEN }}" --output-level quiet > remote_files.txt
+        # Extraer solo los nombres de archivo (basename)
+        sed 's|.*/||' remote_files.txt > remote_basenames.txt
+
+    - name: Debug file listings
+      run: |
+        echo "== Local files =="
+        ls ./data/*.jsonl || true
+        echo "== Remote basenames =="
+        cat remote_basenames.txt || true
 
     - name: Upload and trigger training for new datasets
       env:
@@ -36,7 +45,7 @@ jobs:
       run: |
         for file in ./data/*.jsonl; do
           filename=$(basename "$file")
-          if ! grep -q "$filename" remote_files.txt; then
+          if ! grep -Fxq "$filename" remote_basenames.txt; then
             echo "Uploading $filename..."
             azcopy copy "$file" \
               "https://${{ env.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net/${{ env.STORAGE_CONTAINER_NAME }}/$filename?${{ env.STORAGE_SAS_TOKEN }}" \
