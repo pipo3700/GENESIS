@@ -4,7 +4,7 @@ import mlflow.pytorch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from datasets import load_dataset
 from azure.ai.ml import MLClient
-from azure.identity import DefaultAzureCredential
+from azure.identity import ManagedIdentityCredential
 from pathlib import Path
 
 # Cargar configuración desde variables de entorno
@@ -16,7 +16,7 @@ AZURE_WORKSPACE_NAME = os.getenv("AZURE_WORKSPACE_NAME")
 
 # Inicializar cliente de Azure ML usando federated auth
 try:
-    credential = DefaultAzureCredential()
+    credential = ManagedIdentityCredential()
     ml_client = MLClient(
         credential=credential,
         subscription_id=AZURE_SUBSCRIPTION_ID,
