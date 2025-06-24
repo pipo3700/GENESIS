@@ -1,25 +1,23 @@
 name: Register Trained Model in Azure ML
 
 on:
-  workflow_run:
-    workflows: ["Train Hugging Face Model"]
-    types:
-      - completed
+  workflow_dispatch:
+    inputs:
+      TRAINED_MODEL_STATUS:
+        description: "Estado del modelo entrenado"
+        required: true
+      TRAINED_MODEL_RUN_ID:
+        description: "ID del workflow que generó el modelo"
+        required: true
 
 env:
   MODEL_NAME: "genesis-model"
 
 jobs:
-  debug:
-
-    runs-on: ubuntu-latest
-    steps:
-      - name: Echo conclusion
-        run: echo "Workflow se disparó correctamente con conclusión:${{ github.event.workflow_run.conclusion }}"
   register:
     runs-on: ubuntu-latest
     
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.inputs.TRAINED_MODEL_STATUS == 'success' }}
     permissions:
       id-token: write
       contents: read
@@ -40,7 +38,7 @@ jobs:
           name: trained-model
           path: ./model/
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ github.event.inputs.TRAINED_MODEL_RUN_ID }}
 
       # ✅ Verificar que el modelo existe
       - name: Verify model exists
