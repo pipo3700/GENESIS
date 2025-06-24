@@ -126,6 +126,7 @@ def get_latest_registered_model():
         ml_client = get_ml_client()
         models = ml_client.models.list(name="genesis-model")
         latest_model = max(models, key=lambda m: m.version)
+        logging.info(f"✅ Usando modelo registrado: {latest_model.name} v{latest_model.version}")
         return latest_model.path
     except Exception as e:
         logging.error(f"Failed to get ML model: {e}")
