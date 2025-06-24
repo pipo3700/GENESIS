@@ -1,4 +1,3 @@
-# .github/workflows/register_model.yml
 name: Register Trained Model in Azure ML
 
 on:
