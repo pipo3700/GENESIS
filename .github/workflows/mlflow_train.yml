@@ -51,4 +51,16 @@ jobs:
           name: trained-model
           path: ./model/
           retention-days: 30
-      
+
+      - name: Trigger Register Workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "🚀 Lanzando workflow de registro..."
+          run_id=$(gh run list --workflow mlflow_train.yml --limit 1 --json databaseId -q '.[0].databaseId')
+          echo "🔁 Último run_id de entrenamiento: $run_id"
+          gh workflow run azureml_register.yml \
+            --repo "$REPO" \
+            --field TRAINED_MODEL_STATUS="success" \
+            --field TRAINED_MODEL_RUN_ID="$run_id"
