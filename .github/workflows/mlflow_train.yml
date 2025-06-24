@@ -51,4 +51,4 @@ jobs:
           name: trained-model
           path: ./model/
           retention-days: 30
-      
+
