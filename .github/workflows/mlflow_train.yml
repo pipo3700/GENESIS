@@ -52,8 +52,3 @@ jobs:
           path: ./model/
           retention-days: 30
       
-      - name: Trigger model registration
-        uses: ./.github/workflows/register_model.yml
-        with:
-          model-path: ./model/
-          model-name: genesis-model
