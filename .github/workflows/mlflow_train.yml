@@ -52,14 +52,3 @@ jobs:
           path: ./model/
           retention-days: 30
       
-      - name: Trigger register
-        run: 
-          echo "🚀 Ejecutando workflow de registro en Azure ML..."
-          run_id=$(gh run list --workflow mlflow_train.yml --limit 1 --json databaseId -q '.[0].databaseId')
-          echo "ℹ️ Último run_id:$run_id"
-          gh workflow run azureml_register.yml \
-            --repo ${{ github.repository }} \
-            --field TRAINED_MODEL_STATUS="success" \
-            --field TRAINED_MODEL_RUN_ID="$run_id"
-      
-
