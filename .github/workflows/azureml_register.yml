@@ -10,6 +10,12 @@ env:
   MODEL_NAME: "genesis-model"
 
 jobs:
+  debug:
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo conclusion
+        run: echo "Workflow se disparó correctamente con conclusión:${{ github.event.workflow_run.conclusion }}"
   register:
     runs-on: ubuntu-latest
     
