@@ -62,3 +62,4 @@ jobs:
             --field TRAINED_MODEL_STATUS="success" \
             --field TRAINED_MODEL_RUN_ID="$run_id"
       
+
