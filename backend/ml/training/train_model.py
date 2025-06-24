@@ -38,7 +38,9 @@ try:
             download_path=download_path
         )
         print(f"✅ Modelo descargado desde Azure ML en: {download_path}")
-        model_dir = download_path / "model" if (download_path / "model").exists() else download_path
+        # Recalcular path correcto
+        candidate = download_path / "genesis-model" / "model"
+        model_dir = candidate if candidate.exists() else download_path
         model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
     else:
         raise Exception("No se encontró ninguna versión registrada")
