@@ -54,7 +54,7 @@ jobs:
 
       - name: Trigger Register Workflow
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           REPO: ${{ github.repository }}
         run: |
           echo "🚀 Lanzando workflow de registro..."
