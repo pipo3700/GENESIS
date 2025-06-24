@@ -1,4 +1,3 @@
-# ✅ register_model.py corregido para Hugging Face + seguimiento ML
 import os
 from azure.identity import DefaultAzureCredential
 from azure.ai.ml import MLClient
