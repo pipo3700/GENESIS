@@ -1,3 +1,4 @@
+import tempfile
 import logging, os, json, time, base64, fitz
 from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
@@ -127,28 +128,33 @@ def get_latest_registered_model():
         models = ml_client.models.list(name="genesis-model")
         latest_model = max(models, key=lambda m: m.version)
         logging.info(f"✅ Usando modelo registrado: {latest_model.name} v{latest_model.version}")
-        return latest_model.path
+
+        # Descargar modelo a una carpeta temporal
+        temp_dir = tempfile.mkdtemp()
+        ml_client.models.download(name=latest_model.name, version=latest_model.version, download_path=temp_dir)
+        logging.info(f"📦 Modelo descargado en: {temp_dir}")
+        return temp_dir
     except Exception as e:
         logging.error(f"Failed to get ML model: {e}")
-        # Fallback: use a hardcoded model path or environment variable
-        fallback_path = os.environ.get("MODEL_PATH", "microsoft/DialoGPT-medium")
+        fallback_path = os.environ.get("MODEL_PATH", "google/flan-t5-small")
         logging.warning(f"Using fallback model: {fallback_path}")
         return fallback_path
+
 
 def get_model_pipeline():
     global _pipe
     if _pipe is None:
         try:
-            model_uri = get_latest_registered_model()
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_uri)
-            tokenizer = AutoTokenizer.from_pretrained(model_uri)
+            model_path = get_latest_registered_model()
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
             _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
         except Exception as e:
             logging.error(f"Failed to load custom model: {e}")
-            # Fallback to a public model
             logging.warning("Using fallback public model")
             _pipe = pipeline("text2text-generation", model="google/flan-t5-small")
     return _pipe
+
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     cors_headers = {
