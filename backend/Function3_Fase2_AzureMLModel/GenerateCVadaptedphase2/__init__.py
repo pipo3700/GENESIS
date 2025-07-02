@@ -146,8 +146,10 @@ def get_model_pipeline():
     if _pipe is None:
         try:
             model_path = get_latest_registered_model()
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
+            model_dir = os.path.join(model_path, "model")
+            tokenizer = AutoTokenizer.from_pretrained(model_dir)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
+
             _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
         except Exception as e:
             logging.error(f"Failed to load custom model: {e}")
