@@ -97,45 +97,47 @@ function App() {
     }
   };
 
-  const handleGenerateFineTuned = async () => {
-    if (!jobId) return alert("No se ha subido ningún archivo aún.");
-    setIsGenerating(true);
+const handleGenerateFineTuned = async () => {
+  if (!jobId) return alert("No se ha subido ningún archivo aún.");
+  setIsGenerating(true);
+  try {
+    const response = await fetch("https://api-genesis.azure-api.net/func-genesis-generate-phase2/GenerateCVadaptedphase2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Ocp-Apim-Subscription-Key": "75efa2c8485243f5ae8397740e084a8e"
+      },
+      body: JSON.stringify({ jobId })
+    });
+
+    const raw = await response.text();
+    let result;
     try {
-      const response = await fetch("https://api-genesis.azure-api.net/func-genesis-generate-phase2/GenerateCVadaptedphase2", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Ocp-Apim-Subscription-Key": "75efa2c8485243f5ae8397740e084a8e"
-        },
-        body: JSON.stringify({ jobId })
-      });
-
-      let result;
-      try {
-        result = await response.json();
-      } catch (e) {
-        const text = await response.text();
-        console.error("Respuesta no JSON:", text);
-        alert("Error inesperado en el servidor.");
-        return;
-      }
-
-      if (response.ok && result.generatedCvUrl) {
-        const a = document.createElement("a");
-        a.href = result.generatedCvUrl;
-        a.download = `CV_Adaptado_FT_${jobId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } else {
-        alert("Error: " + result.message);
-      }
-    } catch (err) {
-      alert("Error generando el CV fine-tuned: " + err.message);
-    } finally {
-      setIsGenerating(false);
+      result = JSON.parse(raw);
+    } catch (e) {
+      console.error("Respuesta no es JSON:", raw);
+      alert("Error inesperado en el servidor.");
+      return;
     }
+
+    if (response.ok && result.generatedCvUrl) {
+      const a = document.createElement("a");
+      a.href = result.generatedCvUrl;
+      a.download = `CV_Adaptado_FT_${jobId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      alert("Error: " + (result.message || "No se pudo generar el CV"));
+    }
+
+  } catch (err) {
+    alert("Error generando el CV fine-tuned: " + err.message);
+  } finally {
+    setIsGenerating(false);
+  }
 };
+
 
 
   return (
