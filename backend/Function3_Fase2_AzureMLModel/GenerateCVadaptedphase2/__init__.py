@@ -191,10 +191,14 @@ Genera el CV adaptado:
 """
 
         pipe = get_model_pipeline()
-        new_cv = pipe(prompt, max_length=1024, do_sample=False)[0]["generated_text"]
+        logging.info(" Pipeline cargado, iniciando inferencia...")
+        result = pipe(prompt, max_length=1024, do_sample=False)
+        logging.info(f" Resultado del modelo: {result}")
+        new_cv = result[0]["generated_text"]
 
         pdf = generate_pdf(new_cv)
         url = upload_pdf(pdf, job_id)
+        
 
         return func.HttpResponse(
             json.dumps({"generatedCvUrl": url}),
