@@ -147,8 +147,8 @@ def get_model_pipeline():
         try:
             model_path = get_latest_registered_model()
             model_dir = os.path.join(model_path, "model")
-            tokenizer = AutoTokenizer.from_pretrained(model_dir)
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
+            tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
 
             _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
         except Exception as e:
@@ -194,7 +194,7 @@ Genera el CV adaptado:
 
         pipe = get_model_pipeline()
         logging.info(" Pipeline cargado, iniciando inferencia...")
-        result = pipe(prompt, max_length=1024, do_sample=False)
+        result = pipe(prompt, max_length=1024, do_sample=False, return_full_text=False)
         logging.info(f" Resultado del modelo: {result}")
         new_cv = result[0]["generated_text"]
 
