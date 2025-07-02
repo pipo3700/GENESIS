@@ -149,13 +149,13 @@ def get_model_pipeline():
             model_dir = os.path.join(model_path, "model")
             tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
             model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
-
             _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
         except Exception as e:
             logging.error(f"Failed to load custom model: {e}")
             logging.warning("Using fallback public model")
             _pipe = pipeline("text2text-generation", model="google/flan-t5-small")
     return _pipe
+
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -179,25 +179,32 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         sim = cosine_sim(cv_embed, job_embed)
 
         prompt = f"""
-Eres un asistente experto en RRHH. Adapta el CV original a la oferta de trabajo resaltando los puntos relevantes.
-
+Adapta el siguiente currículum a la oferta de trabajo, resaltando solo los puntos más relevantes.
 Similitud cosenoidal: {sim:.2f}
 
---- CV ORIGINAL ---
+--- CV ---
 {cv_text}
 
 --- OFERTA ---
 {job_text}
 
-Genera el CV adaptado:
+--- CV ADAPTADO ---
 """
 
         pipe = get_model_pipeline()
         logging.info(" Pipeline cargado, iniciando inferencia...")
-        result = pipe(prompt, max_length=1024, do_sample=False, return_full_text=False)
+        result = pipe(prompt, max_length=1024, do_sample=False)
         logging.info(f" Resultado del modelo: {result}")
-        new_cv = result[0]["generated_text"]
 
+        # Extraer solo la parte generada posterior a la etiqueta
+        generated = result[0]["generated_text"]
+        if "--- CV ADAPTADO ---" in generated:
+            new_cv = generated.split("--- CV ADAPTADO ---")[-1].strip()
+        else:
+            new_cv = generated.strip()
+
+        logging.info(f"✅ Texto adaptado generado:\n{new_cv[:300]}")
+        
         pdf = generate_pdf(new_cv)
         url = upload_pdf(pdf, job_id)
         
