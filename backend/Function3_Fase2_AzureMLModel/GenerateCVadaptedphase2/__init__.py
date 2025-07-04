@@ -94,24 +94,36 @@ def generate_pdf(text):
     buffer = BytesIO()
     p = canvas.Canvas(buffer)
     p.setFont("Helvetica", 10)
-    y = 800
-    for line in text.split("\n"):
-        while len(line) > 100:
-            if y < 40:
-                p.showPage()
-                y = 800
-            p.drawString(50, y, line[:100])
-            y -= 15
-            line = line[100:]
-        if line.strip():
-            if y < 40:
-                p.showPage()
-                y = 800
-            p.drawString(50, y, line)
-            y -= 15
+
+    width, height = p._pagesize
+    margin = 50
+    line_height = 15
+    max_lines_per_page = int((height - 2 * margin) / line_height)
+
+    lines = []
+    for paragraph in text.split('\n'):
+        while len(paragraph) > 100:
+            lines.append(paragraph[:100])
+            paragraph = paragraph[100:]
+        lines.append(paragraph)
+
+    y = height - margin
+    lines_on_page = 0
+
+    for line in lines:
+        if lines_on_page >= max_lines_per_page or y < margin:
+            p.showPage()
+            p.setFont("Helvetica", 10)
+            y = height - margin
+            lines_on_page = 0
+        p.drawString(margin, y, line)
+        y -= line_height
+        lines_on_page += 1
+
     p.save()
     buffer.seek(0)
     return buffer
+
 
 def upload_pdf(pdf_stream, job_id):
     blob_service = get_blob_service()
@@ -181,16 +193,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         sim = cosine_sim(cv_embed, job_embed)
 
         prompt = f"""
-Adapta el siguiente currículum a la oferta de trabajo, resaltando solo los puntos más relevantes para la oferta.
-Similitud cosenoidal: {sim:.2f}
+Toma el siguiente CV y adáptalo a la oferta de trabajo proporcionada. El resultado debe ser un CV personalizado que resalte las habilidades y experiencias más relevantes para dicha oferta.
 
---- CV ---
+[CV]
 {cv_text}
 
---- OFERTA ---
+[OFERTA]
 {job_text}
 
---- CV ADAPTADO ---
+[CV ADAPTADO]
 """
 
         pipe = get_model_pipeline()
@@ -202,18 +213,17 @@ Similitud cosenoidal: {sim:.2f}
         generated = result[0]["generated_text"]
 
         # Intentar extraer solo el texto después del separador
-        if "--- CV ADAPTADO ---" in generated:
-            new_cv = generated.split("--- CV ADAPTADO ---", 1)[-1].strip()
+        if "[CV ADAPTADO]" in generated:
+            new_cv = generated.split("[CV ADAPTADO]", 1)[-1].strip()
         else:
-            # Heurística: eliminar todo el contenido del prompt original si fue reproducido
             prompt_preview = prompt.strip().replace("\n", "").replace(" ", "")
             generated_preview = generated.strip().replace("\n", "").replace(" ", "")
-
             if generated_preview.startswith(prompt_preview[:150]):
                 logging.warning("🔁 El modelo ha repetido el prompt, eliminando encabezado...")
                 new_cv = generated[len(prompt):].strip()
             else:
                 new_cv = generated.strip()
+
 
         # Validar que no quedó vacío tras la limpieza
         if not new_cv.strip():
