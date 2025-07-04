@@ -182,7 +182,7 @@ Similitud cosenoidal: {sim:.2f}
 
         logging.info("🧠 Ejecutando inferencia con generate()...")
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-        outputs = model.generate(**inputs, max_length=512, do_sample=False)
+        outputs = model.generate(**inputs, max_length=1024, do_sample=False)
         generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
         # Extraer contenido después del marcador si está presente
