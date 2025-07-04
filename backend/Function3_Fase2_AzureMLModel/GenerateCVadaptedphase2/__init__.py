@@ -206,7 +206,7 @@ Toma el siguiente CV y adáptalo a la oferta de trabajo proporcionada. El result
 
         pipe = get_model_pipeline()
         logging.info(" Pipeline cargado, iniciando inferencia...")
-        result = pipe(prompt, max_length=1024, do_sample=False, return_full_text=False)
+        result = pipe(prompt, max_length=1024, do_sample=False, truncation=True)
         logging.info(f" Resultado del modelo: {result}")
 
         # Extraer solo la parte generada posterior a la etiqueta
