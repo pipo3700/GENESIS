@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-from openai import AzureOpenAI  # ✅ Nueva sintaxis
+from openai import AzureOpenAI  
 import requests
 import fitz 
 from azure.storage.blob import BlobClient
@@ -20,7 +20,6 @@ cosmos_container = os.environ["COSMOS_CONTAINER"]
 STORAGE_ACCOUNT_NAME = os.environ["STORAGE_ACCOUNT_NAME"]
 STORAGE_SAS_TOKEN = os.environ["BLOB_SAS_TOKEN"]
 
-# ✅ Nueva forma de inicializar cliente OpenAI
 client = AzureOpenAI(
     api_key=AZURE_OPENAI_KEY,
     api_version="2024-02-01",
@@ -45,7 +44,6 @@ def download_blob_text(blob_url):
     return response.text
 
 def generate_embedding(text):
-    # ✅ Nueva sintaxis para embeddings
     response = client.embeddings.create(
         input=text,
         model=OPENAI_DEPLOYMENT
@@ -62,7 +60,6 @@ def insert_into_cosmos(doc_id, text, embedding, doc_type):
     container.upsert_item(document)
     logging.info(f"Documento subido a Cosmos DB")
 
-# ✅ ESTA ES LA FUNCIÓN PRINCIPAL QUE FALTABA
 def main(event: func.EventGridEvent):
     logging.info("Evento recibido")
     

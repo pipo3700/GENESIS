@@ -194,7 +194,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         
         # Generar prompt
         prompt = f"""
-Eres un asistente experto en RRHH. Adapta el CV original a la oferta de trabajo resaltando los puntos relevantes.
+Eres un asistente experto en RRHH. Adapta el CV original a la oferta de trabajo resaltando los puntos relevantes, sin inventarte nada.
 
 Similitud cosenoidal: {sim:.2f}
 
