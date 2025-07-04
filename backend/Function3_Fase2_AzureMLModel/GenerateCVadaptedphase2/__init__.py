@@ -145,8 +145,8 @@ def get_model_pipeline():
     global _pipe
     if _pipe is None:
         try:
-            model_path = get_latest_registered_model()
-            model_dir = os.path.join(model_path, "model")
+            model_dir = get_latest_registered_model()
+            logging.info(f"📁 Contenido de {model_dir}: {os.listdir(model_dir)}")
             tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
             model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
             _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
