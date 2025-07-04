@@ -147,6 +147,64 @@ def get_latest_registered_model():
         logging.warning(f"Using fallback model: {fallback_path}")
         return fallback_path
 
+def generate_adapted_cv_prompt(cv_text, job_text, sim):
+    """Genera un prompt más directo para adaptar el CV"""
+    prompt = f"""Reescribe este currículum adaptándolo para la siguiente oferta de trabajo. Solo reorganiza y resalta la información más relevante sin inventar nada nuevo.
+
+OFERTA DE TRABAJO:
+{job_text}
+
+CURRÍCULUM ORIGINAL:
+{cv_text}
+
+CURRÍCULUM ADAPTADO:"""
+    return prompt
+
+def extract_adapted_cv(generated_text, prompt):
+    """Extrae el CV adaptado de la respuesta del modelo"""
+    
+    # Método 1: Buscar después del último marcador
+    markers = ["CURRÍCULUM ADAPTADO:", "CV ADAPTADO:", "--- CV ADAPTADO ---"]
+    for marker in markers:
+        if marker in generated_text:
+            parts = generated_text.split(marker)
+            if len(parts) > 1:
+                result = parts[-1].strip()
+                if result and len(result) > 50:  # Validar que no esté vacío
+                    return result
+    
+    # Método 2: Remover el prompt original si está presente
+    lines = generated_text.split('\n')
+    prompt_lines = set(prompt.split('\n'))
+    
+    adapted_lines = []
+    found_content = False
+    
+    for line in lines:
+        # Saltar líneas que son parte del prompt
+        if line.strip() in prompt_lines or line.strip() in ['OFERTA DE TRABAJO:', 'CURRÍCULUM ORIGINAL:', 'CURRÍCULUM ADAPTADO:']:
+            found_content = True
+            continue
+        
+        # Si encontramos contenido después del prompt, agregarlo
+        if found_content and line.strip():
+            adapted_lines.append(line)
+    
+    if adapted_lines:
+        return '\n'.join(adapted_lines)
+    
+    # Método 3: Fallback - buscar contenido que no sea del prompt original
+    clean_lines = []
+    for line in lines:
+        if line.strip() and not any(keyword in line.lower() for keyword in ['oferta de trabajo', 'currículum original', 'reescribe']):
+            clean_lines.append(line)
+    
+    if clean_lines:
+        return '\n'.join(clean_lines)
+    
+    # Método 4: Último recurso - devolver todo
+    return generated_text.strip()
+
 def main(req: func.HttpRequest) -> func.HttpResponse:
     cors_headers = {
         "Access-Control-Allow-Origin": "https://red-sand-04619bc10.6.azurestaticapps.net",
@@ -167,31 +225,61 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         cv_text, job_text, cv_embed, job_embed = wait_for_embeddings(job_id)
         sim = cosine_sim(cv_embed, job_embed)
 
-        prompt = f"""Adapta el siguiente currículum a la oferta de trabajo, resaltando solo los puntos más relevantes para la oferta, sin inventarte nada.
-Similitud cosenoidal: {sim:.2f}
-
---- CV ---
-{cv_text}
-
---- OFERTA ---
-{job_text}
-
---- CV ADAPTADO ---"""
-
+        # Usar el nuevo prompt más directo
+        prompt = generate_adapted_cv_prompt(cv_text, job_text, sim)
+        
         model, tokenizer = load_model_and_tokenizer()
 
         logging.info("🧠 Ejecutando inferencia con generate()...")
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-        outputs = model.generate(**inputs, max_length=1024, do_sample=False)
+        
+        # Parámetros mejorados para evitar repetición del prompt
+        outputs = model.generate(
+            **inputs, 
+            max_length=1024, 
+            do_sample=True,           # Cambiar a True para más variabilidad
+            temperature=0.7,          # Añadir temperatura
+            top_p=0.9,               # Añadir nucleus sampling
+            repetition_penalty=1.2,   # Penalizar repeticiones
+            no_repeat_ngram_size=3,   # Evitar repetir n-gramas
+            pad_token_id=tokenizer.eos_token_id if tokenizer.eos_token_id else tokenizer.pad_token_id
+        )
+        
         generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Usar la función mejorada para extraer el CV
+        new_cv = extract_adapted_cv(generated, prompt)
+        
+        logging.info(f"✅ Prompt usado:\n{prompt[:200]}...")
+        logging.info(f"✅ Texto generado completo:\n{generated[:500]}...")
+        logging.info(f"✅ CV adaptado extraído:\n{new_cv[:300]}...")
+        
+        # Validar que el resultado sea válido
+        if len(new_cv) < 100:
+            logging.warning("CV adaptado muy corto, usando fallback")
+            # Crear un CV básico adaptado manualmente
+            new_cv = f"""Nombre: {cv_text.split('Nombre:')[1].split('Email:')[0].strip() if 'Nombre:' in cv_text else 'Candidato'}
+Email: {cv_text.split('Email:')[1].split('Teléfono:')[0].strip() if 'Email:' in cv_text else 'email@ejemplo.com'}
 
-        # Extraer contenido después del marcador si está presente
-        if "--- CV ADAPTADO ---" in generated:
-            new_cv = generated.split("--- CV ADAPTADO ---")[-1].strip()
-        else:
-            new_cv = generated.strip()
+PERFIL PROFESIONAL:
+Candidato con experiencia relevante para la posición ofertada.
 
-        logging.info(f"✅ Texto adaptado generado:\n{new_cv[:300]}")
+EXPERIENCIA DESTACADA:
+{cv_text.split('Experiencia:')[1].split('Habilidades:')[0].strip() if 'Experiencia:' in cv_text else 'Experiencia profesional relevante'}
+
+HABILIDADES CLAVE:
+{cv_text.split('Habilidades:')[1].split('Educación:')[0].strip() if 'Habilidades:' in cv_text else 'Habilidades técnicas'}
+
+FORMACIÓN:
+{cv_text.split('Educación:')[1].strip() if 'Educación:' in cv_text else 'Formación académica'}"""
+        
+        # Verificar que no contenga el prompt original
+        if any(keyword in new_cv.lower() for keyword in ['oferta de trabajo:', 'currículum original:', 'reescribe']):
+            logging.warning("El CV contiene partes del prompt, limpiando...")
+            lines = new_cv.split('\n')
+            clean_lines = [line for line in lines if not any(keyword in line.lower() for keyword in ['oferta de trabajo', 'currículum original', 'reescribe'])]
+            new_cv = '\n'.join(clean_lines)
+        
         pdf = generate_pdf(new_cv)
         url = upload_pdf(pdf, job_id)
 
