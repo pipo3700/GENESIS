@@ -4,18 +4,19 @@ from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from io import BytesIO
 from numpy import dot
 from numpy.linalg import norm
 from reportlab.pdfgen import canvas
 import azure.functions as func
+import torch
 
-# Variables globales
 _cosmos = None
 _container = None
 _blob_service = None
-_pipe = None
+_model = None
+_tokenizer = None
 _ml_client = None
 
 def fix_cosmos_key(key):
@@ -45,7 +46,6 @@ def get_ml_client():
     global _ml_client
     if _ml_client is None:
         try:
-            # Try Managed Identity first
             credential = ManagedIdentityCredential()
             _ml_client = MLClient(
                 credential=credential,
@@ -55,7 +55,6 @@ def get_ml_client():
             )
         except Exception as e:
             logging.warning(f"Managed Identity failed: {e}")
-            # Fallback to service principal if environment variables are set
             try:
                 from azure.identity import ClientSecretCredential
                 credential = ClientSecretCredential(
@@ -122,14 +121,22 @@ def upload_pdf(pdf_stream, job_id):
     sas_token = os.environ["BLOB_SAS_TOKEN"]
     return f"https://{account_name}.blob.core.windows.net/upload/{blob_name}?{sas_token}"
 
+def load_model_and_tokenizer():
+    global _model, _tokenizer
+    if _model is None or _tokenizer is None:
+        model_path = get_latest_registered_model()
+        model_dir = os.path.join(model_path, "genesis-model", "model")
+        logging.info(f"📁 Contenido de {model_dir}: {os.listdir(model_dir)}")
+        _tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+        _model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
+    return _model, _tokenizer
+
 def get_latest_registered_model():
     try:
         ml_client = get_ml_client()
         models = ml_client.models.list(name="genesis-model")
         latest_model = max(models, key=lambda m: m.version)
         logging.info(f"✅ Usando modelo registrado: {latest_model.name} v{latest_model.version}")
-
-        # Descargar modelo a una carpeta temporal
         temp_dir = tempfile.mkdtemp()
         ml_client.models.download(name=latest_model.name, version=latest_model.version, download_path=temp_dir)
         logging.info(f"📦 Modelo descargado en: {temp_dir}")
@@ -139,26 +146,6 @@ def get_latest_registered_model():
         fallback_path = os.environ.get("MODEL_PATH", "google/flan-t5-small")
         logging.warning(f"Using fallback model: {fallback_path}")
         return fallback_path
-
-
-def get_model_pipeline():
-    global _pipe
-    if _pipe is None:
-        try:
-            model_path = get_latest_registered_model()
-            model_dir = os.path.join(model_path, "genesis-model", "model")
-            logging.info(f"📁 Contenido de {model_dir}: {os.listdir(model_dir)}")
-            logging.info(os.listdir(model_dir))
-            tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
-            _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
-        except Exception as e:
-            logging.error(f"Failed to load custom model: {e}")
-            logging.warning("Using fallback public model")
-            _pipe = pipeline("text2text-generation", model="google/flan-t5-small")
-    return _pipe
-
-
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     cors_headers = {
@@ -180,8 +167,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         cv_text, job_text, cv_embed, job_embed = wait_for_embeddings(job_id)
         sim = cosine_sim(cv_embed, job_embed)
 
-        prompt = f"""
-Adapta el siguiente currículum a la oferta de trabajo, resaltando solo los puntos más relevantes.
+        prompt = f"""Adapta el siguiente currículum a la oferta de trabajo, resaltando solo los puntos más relevantes para la oferta, sin inventarte nada.
 Similitud cosenoidal: {sim:.2f}
 
 --- CV ---
@@ -190,38 +176,36 @@ Similitud cosenoidal: {sim:.2f}
 --- OFERTA ---
 {job_text}
 
---- CV ADAPTADO ---
-"""
+--- CV ADAPTADO ---"""
 
-        pipe = get_model_pipeline()
-        logging.info(" Pipeline cargado, iniciando inferencia...")
-        result = pipe(prompt, max_length=1024, do_sample=False)
-        logging.info(f" Resultado del modelo: {result}")
+        model, tokenizer = load_model_and_tokenizer()
 
-        # Extraer solo la parte generada posterior a la etiqueta
-        generated = result[0]["generated_text"]
+        logging.info("🧠 Ejecutando inferencia con generate()...")
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+        outputs = model.generate(**inputs, max_length=512, do_sample=False)
+        generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+        # Extraer contenido después del marcador si está presente
         if "--- CV ADAPTADO ---" in generated:
             new_cv = generated.split("--- CV ADAPTADO ---")[-1].strip()
         else:
             new_cv = generated.strip()
 
         logging.info(f"✅ Texto adaptado generado:\n{new_cv[:300]}")
-        
         pdf = generate_pdf(new_cv)
         url = upload_pdf(pdf, job_id)
-        
 
         return func.HttpResponse(
-            json.dumps({"generatedCvUrl": url}),
-            mimetype="application/json",
+            body=json.dumps({"generatedCvUrl": url}),
             status_code=200,
+            mimetype="application/json",
             headers=cors_headers
         )
 
     except Exception as e:
         logging.error(f"Error Function 3: {e}")
         return func.HttpResponse(
-            json.dumps({"error": str(e)}),
+            body=json.dumps({"error": str(e)}),
             status_code=500,
             headers=cors_headers,
             mimetype="application/json"
