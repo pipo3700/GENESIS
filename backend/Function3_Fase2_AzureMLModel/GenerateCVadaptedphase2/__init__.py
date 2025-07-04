@@ -146,7 +146,7 @@ def get_model_pipeline():
     if _pipe is None:
         try:
             model_path = get_latest_registered_model()
-            model_dir = os.path.join(model_path, "genesis-model")
+            model_dir = os.path.join(model_path, "genesis-model", "model")
             logging.info(f"📁 Contenido de {model_dir}: {os.listdir(model_dir)}")
             logging.info(os.listdir(model_dir))
             tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
