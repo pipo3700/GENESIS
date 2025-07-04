@@ -4,19 +4,18 @@ from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
 from azure.ai.ml import MLClient
 from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 from io import BytesIO
 from numpy import dot
 from numpy.linalg import norm
 from reportlab.pdfgen import canvas
 import azure.functions as func
-import torch
 
+# Variables globales
 _cosmos = None
 _container = None
 _blob_service = None
-_model = None
-_tokenizer = None
+_pipe = None
 _ml_client = None
 
 def fix_cosmos_key(key):
@@ -46,6 +45,7 @@ def get_ml_client():
     global _ml_client
     if _ml_client is None:
         try:
+            # Try Managed Identity first
             credential = ManagedIdentityCredential()
             _ml_client = MLClient(
                 credential=credential,
@@ -55,6 +55,7 @@ def get_ml_client():
             )
         except Exception as e:
             logging.warning(f"Managed Identity failed: {e}")
+            # Fallback to service principal if environment variables are set
             try:
                 from azure.identity import ClientSecretCredential
                 credential = ClientSecretCredential(
@@ -121,22 +122,14 @@ def upload_pdf(pdf_stream, job_id):
     sas_token = os.environ["BLOB_SAS_TOKEN"]
     return f"https://{account_name}.blob.core.windows.net/upload/{blob_name}?{sas_token}"
 
-def load_model_and_tokenizer():
-    global _model, _tokenizer
-    if _model is None or _tokenizer is None:
-        model_path = get_latest_registered_model()
-        model_dir = os.path.join(model_path, "genesis-model", "model")
-        logging.info(f"📁 Contenido de {model_dir}: {os.listdir(model_dir)}")
-        _tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
-        _model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
-    return _model, _tokenizer
-
 def get_latest_registered_model():
     try:
         ml_client = get_ml_client()
         models = ml_client.models.list(name="genesis-model")
         latest_model = max(models, key=lambda m: m.version)
         logging.info(f"✅ Usando modelo registrado: {latest_model.name} v{latest_model.version}")
+
+        # Descargar modelo a una carpeta temporal
         temp_dir = tempfile.mkdtemp()
         ml_client.models.download(name=latest_model.name, version=latest_model.version, download_path=temp_dir)
         logging.info(f"📦 Modelo descargado en: {temp_dir}")
@@ -147,63 +140,25 @@ def get_latest_registered_model():
         logging.warning(f"Using fallback model: {fallback_path}")
         return fallback_path
 
-def generate_adapted_cv_prompt(cv_text, job_text, sim):
-    """Genera un prompt más directo para adaptar el CV"""
-    prompt = f"""Reescribe este currículum adaptándolo para la siguiente oferta de trabajo. Solo reorganiza y resalta la información más relevante sin inventar nada nuevo.
 
-OFERTA DE TRABAJO:
-{job_text}
+def get_model_pipeline():
+    global _pipe
+    if _pipe is None:
+        try:
+            model_path = get_latest_registered_model()
+            model_dir = os.path.join(model_path, "genesis-model", "model")
+            logging.info(f"📁 Contenido de {model_dir}: {os.listdir(model_dir)}")
+            logging.info(os.listdir(model_dir))
+            tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, local_files_only=True)
+            _pipe = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+        except Exception as e:
+            logging.error(f"Failed to load custom model: {e}")
+            logging.warning("Using fallback public model")
+            _pipe = pipeline("text2text-generation", model="google/flan-t5-small")
+    return _pipe
 
-CURRÍCULUM ORIGINAL:
-{cv_text}
 
-CURRÍCULUM ADAPTADO:"""
-    return prompt
-
-def extract_adapted_cv(generated_text, prompt):
-    """Extrae el CV adaptado de la respuesta del modelo"""
-    
-    # Método 1: Buscar después del último marcador
-    markers = ["CURRÍCULUM ADAPTADO:", "CV ADAPTADO:", "--- CV ADAPTADO ---"]
-    for marker in markers:
-        if marker in generated_text:
-            parts = generated_text.split(marker)
-            if len(parts) > 1:
-                result = parts[-1].strip()
-                if result and len(result) > 50:  # Validar que no esté vacío
-                    return result
-    
-    # Método 2: Remover el prompt original si está presente
-    lines = generated_text.split('\n')
-    prompt_lines = set(prompt.split('\n'))
-    
-    adapted_lines = []
-    found_content = False
-    
-    for line in lines:
-        # Saltar líneas que son parte del prompt
-        if line.strip() in prompt_lines or line.strip() in ['OFERTA DE TRABAJO:', 'CURRÍCULUM ORIGINAL:', 'CURRÍCULUM ADAPTADO:']:
-            found_content = True
-            continue
-        
-        # Si encontramos contenido después del prompt, agregarlo
-        if found_content and line.strip():
-            adapted_lines.append(line)
-    
-    if adapted_lines:
-        return '\n'.join(adapted_lines)
-    
-    # Método 3: Fallback - buscar contenido que no sea del prompt original
-    clean_lines = []
-    for line in lines:
-        if line.strip() and not any(keyword in line.lower() for keyword in ['oferta de trabajo', 'currículum original', 'reescribe']):
-            clean_lines.append(line)
-    
-    if clean_lines:
-        return '\n'.join(clean_lines)
-    
-    # Método 4: Último recurso - devolver todo
-    return generated_text.strip()
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     cors_headers = {
@@ -225,63 +180,54 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         cv_text, job_text, cv_embed, job_embed = wait_for_embeddings(job_id)
         sim = cosine_sim(cv_embed, job_embed)
 
-        # Usar el nuevo prompt más directo
-        prompt = generate_adapted_cv_prompt(cv_text, job_text, sim)
-        
-        model, tokenizer = load_model_and_tokenizer()
+        prompt = f"""
+Adapta el siguiente currículum a la oferta de trabajo, resaltando solo los puntos más relevantes para la oferta.
+Similitud cosenoidal: {sim:.2f}
 
-        logging.info("🧠 Ejecutando inferencia con generate()...")
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-        
-        # Parámetros mejorados para evitar repetición del prompt
-        outputs = model.generate(
-            **inputs, 
-            max_length=1024, 
-            do_sample=True,           # Cambiar a True para más variabilidad
-            temperature=0.7,          # Añadir temperatura
-            top_p=0.9,               # Añadir nucleus sampling
-            repetition_penalty=1.2,   # Penalizar repeticiones
-            no_repeat_ngram_size=3,   # Evitar repetir n-gramas
-            pad_token_id=tokenizer.eos_token_id if tokenizer.eos_token_id else tokenizer.pad_token_id
-        )
-        
-        generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Usar la función mejorada para extraer el CV
-        new_cv = extract_adapted_cv(generated, prompt)
-        
-        logging.info(f"✅ Prompt usado:\n{prompt[:200]}...")
-        logging.info(f"✅ Texto generado completo:\n{generated[:500]}...")
-        logging.info(f"✅ CV adaptado extraído:\n{new_cv[:300]}...")
-        
-        # Validar que el resultado sea válido
-        if len(new_cv) < 100:
-            logging.warning("CV adaptado muy corto, usando fallback")
-            # Crear un CV básico adaptado manualmente
-            new_cv = f"""Nombre: {cv_text.split('Nombre:')[1].split('Email:')[0].strip() if 'Nombre:' in cv_text else 'Candidato'}
-Email: {cv_text.split('Email:')[1].split('Teléfono:')[0].strip() if 'Email:' in cv_text else 'email@ejemplo.com'}
+--- CV ---
+{cv_text}
 
-PERFIL PROFESIONAL:
-Candidato con experiencia relevante para la posición ofertada.
+--- OFERTA ---
+{job_text}
 
-EXPERIENCIA DESTACADA:
-{cv_text.split('Experiencia:')[1].split('Habilidades:')[0].strip() if 'Experiencia:' in cv_text else 'Experiencia profesional relevante'}
+--- CV ADAPTADO ---
+"""
 
-HABILIDADES CLAVE:
-{cv_text.split('Habilidades:')[1].split('Educación:')[0].strip() if 'Habilidades:' in cv_text else 'Habilidades técnicas'}
+        pipe = get_model_pipeline()
+        logging.info(" Pipeline cargado, iniciando inferencia...")
+        result = pipe(prompt, max_length=1024, do_sample=False)
+        logging.info(f" Resultado del modelo: {result}")
 
-FORMACIÓN:
-{cv_text.split('Educación:')[1].strip() if 'Educación:' in cv_text else 'Formación académica'}"""
-        
-        # Verificar que no contenga el prompt original
-        if any(keyword in new_cv.lower() for keyword in ['oferta de trabajo:', 'currículum original:', 'reescribe']):
-            logging.warning("El CV contiene partes del prompt, limpiando...")
-            lines = new_cv.split('\n')
-            clean_lines = [line for line in lines if not any(keyword in line.lower() for keyword in ['oferta de trabajo', 'currículum original', 'reescribe'])]
-            new_cv = '\n'.join(clean_lines)
+        # Extraer solo la parte generada posterior a la etiqueta
+        generated = result[0]["generated_text"]
+
+        # Intentar extraer solo el texto después del separador
+        if "--- CV ADAPTADO ---" in generated:
+            new_cv = generated.split("--- CV ADAPTADO ---", 1)[-1].strip()
+        else:
+            # Heurística: eliminar todo el contenido del prompt original si fue reproducido
+            prompt_preview = prompt.strip().replace("\n", "").replace(" ", "")
+            generated_preview = generated.strip().replace("\n", "").replace(" ", "")
+
+            if generated_preview.startswith(prompt_preview[:150]):
+                logging.warning("🔁 El modelo ha repetido el prompt, eliminando encabezado...")
+                new_cv = generated[len(prompt):].strip()
+            else:
+                new_cv = generated.strip()
+
+        # Validar que no quedó vacío tras la limpieza
+        if not new_cv.strip():
+            logging.warning("⚠️ La salida está vacía tras limpieza. Usando fallback.")
+            new_cv = "No se pudo generar un CV adaptado. Intenta con otro ejemplo o revisa el modelo."
+
+        logging.info(f"✅ Texto adaptado generado (preview):\n{new_cv[:300]}")
+
+
+        logging.info(f"✅ Texto adaptado generado:\n{new_cv[:300]}")
         
         pdf = generate_pdf(new_cv)
         url = upload_pdf(pdf, job_id)
+        
 
         return func.HttpResponse(
             body=json.dumps({"generatedCvUrl": url}),
@@ -293,7 +239,7 @@ FORMACIÓN:
     except Exception as e:
         logging.error(f"Error Function 3: {e}")
         return func.HttpResponse(
-            body=json.dumps({"error": str(e)}),
+            json.dumps({"error": str(e)}),
             status_code=500,
             headers=cors_headers,
             mimetype="application/json"
