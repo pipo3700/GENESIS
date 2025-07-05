@@ -194,6 +194,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         prompt = f"""
 Cv adaptado a la oferta:
+
 [CV]
 {cv_text}
 
