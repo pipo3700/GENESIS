@@ -193,7 +193,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         sim = cosine_sim(cv_embed, job_embed)
 
         prompt = f"""
-Cv adaptado a la oferta:
+Toma el siguiente CV y adáptalo a la oferta de trabajo proporcionada. El resultado debe ser un CV personalizado que resalte las habilidades y experiencias más relevantes para dicha oferta.
 
 [CV]
 {cv_text}
