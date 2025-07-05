@@ -73,7 +73,7 @@ def main(event: func.EventGridEvent):
 
         job_offer_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/upload/joboffer/jobOffer-{job_id}.txt"
 
-        # Procesar archivos
+        # Procesar archivos guardados
         cv_text = extract_text_from_pdf_bytes(requests.get(blob_url + "?" + STORAGE_SAS_TOKEN).content)
         job_offer_text = download_blob_text(job_offer_url)
 
