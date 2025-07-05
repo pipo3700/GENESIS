@@ -193,6 +193,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         sim = cosine_sim(cv_embed, job_embed)
 
         prompt = f"""
+Cv adaptado a la oferta:
 [CV]
 {cv_text}
 
