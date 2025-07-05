@@ -58,7 +58,7 @@ def preprocess(example):
     targets = tokenizer(example["target"], truncation=True, padding="max_length", max_length=128)
     inputs["labels"] = targets["input_ids"]
     return inputs
-
+print(f"✅ Dataset utilizado: {DATASET_PATH}")
 dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 dataset = dataset.map(preprocess, remove_columns=["input", "target"])
 
