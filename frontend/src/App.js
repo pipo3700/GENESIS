@@ -80,7 +80,6 @@ function App() {
       }
 
       if (response.ok && result.generatedCvUrl) {
-        // Descargar automáticamente
         const a = document.createElement("a");
         a.href = result.generatedCvUrl;
         a.download = `CV_Adaptado_${jobId}.pdf`;
